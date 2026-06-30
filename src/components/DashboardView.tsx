@@ -6,7 +6,7 @@ import { calculateBrigadePeriodMetrics } from '@/lib/calculations';
 import PerformanceTrafficLight from './PerformanceTrafficLight';
 
 export default function DashboardView() {
-  const { partes, gastos, brigadas, recursos, config, setSection, setSelectedBrigadaFilter } = useApp();
+  const { partes, gastos, brigadas, recursos, config, setSection, setSelectedBrigadaFilter, currentObra } = useApp();
 
   const handleRowClick = (brigadaId: string) => {
     setSelectedBrigadaFilter(brigadaId);
@@ -25,10 +25,12 @@ export default function DashboardView() {
   
   const [selectedBrigadaId, setSelectedBrigadaId] = useState('');
 
+  const isTarea = currentObra?.tipo === 'tarea';
+
   // 1. Calcular métricas por cada brigada
   const brigadeMetricsList = brigadas.map(b => {
     return config
-      ? calculateBrigadePeriodMetrics(b.id, b.nombre, b.jefe_nombre || 'Sin asignar', partes, gastos, config, recursos, fechaInicio, fechaFin)
+      ? calculateBrigadePeriodMetrics(b.id, b.nombre, b.jefe_nombre || 'Sin asignar', partes, gastos, config, recursos, fechaInicio, fechaFin, currentObra?.tipo)
       : {
           brigadaId: b.id,
           brigadaNombre: b.nombre,
@@ -52,15 +54,40 @@ export default function DashboardView() {
     ? brigadeMetricsList.reduce((sum, item) => sum + item.averageCompliance, 0) / brigadeMetricsList.length 
     : 0;
 
+  // Calcular puntos totales consolidados (si es tipo tarea)
+  let totalPuntosAchieved = 0;
+  let totalPuntosTarget = 0;
+  if (isTarea) {
+    partes.forEach(p => {
+      if (p.fecha >= fechaInicio && p.fecha <= fechaFin) {
+        totalPuntosTarget += p.num_personas * (config?.puntos_objetivo_dia ?? 10.00);
+        p.lineas?.forEach(l => {
+          const puntos = (l as any).partida_puntos ?? 0;
+          totalPuntosAchieved += l.metros_ejecutados * puntos;
+        });
+      }
+    });
+  }
+
   // Semáforo consolidado
   let totalStatus: 'rojo' | 'verde' | 'azul' = 'rojo';
   if (config) {
-    if (avgCompliance < config.umbral_verde || totalMargin <= config.margen_minimo) {
-      totalStatus = 'rojo';
-    } else if (avgCompliance >= config.umbral_verde && avgCompliance < config.umbral_azul) {
-      totalStatus = 'verde';
+    if (isTarea) {
+      if (avgCompliance < config.umbral_verde) {
+        totalStatus = 'rojo';
+      } else if (avgCompliance >= config.umbral_verde && avgCompliance < config.umbral_azul) {
+        totalStatus = 'verde';
+      } else {
+        totalStatus = 'azul';
+      }
     } else {
-      totalStatus = 'azul';
+      if (avgCompliance < config.umbral_verde || totalMargin <= config.margen_minimo) {
+        totalStatus = 'rojo';
+      } else if (avgCompliance >= config.umbral_verde && avgCompliance < config.umbral_azul) {
+        totalStatus = 'verde';
+      } else {
+        totalStatus = 'azul';
+      }
     }
   }
 
@@ -75,22 +102,29 @@ export default function DashboardView() {
     // Calcular rendimiento y margen diario
     let revenue = 0;
     let complianceSum = 0;
+    let dayPuntosAchieved = 0;
     const numLineas = p.lineas?.length || 0;
 
     if (p.lineas && numLineas > 0) {
       p.lineas.forEach(l => {
-        revenue += l.metros_ejecutados * (l.partida_precio_unitario ?? 0);
-        const rendObj = l.partida_rendimiento_objetivo ?? config?.rendimiento_default ?? 100;
-        const totalObj = p.num_personas * rendObj;
-        complianceSum += totalObj > 0 ? (l.metros_ejecutados / totalObj) * 100 : 0;
+        if (isTarea) {
+          dayPuntosAchieved += l.metros_ejecutados * ((l as any).partida_puntos ?? 0);
+        } else {
+          revenue += l.metros_ejecutados * (l.partida_precio_unitario ?? 0);
+          const rendObj = l.partida_rendimiento_objetivo ?? config?.rendimiento_default ?? 100;
+          const totalObj = p.num_personas * rendObj;
+          complianceSum += totalObj > 0 ? (l.metros_ejecutados / totalObj) * 100 : 0;
+        }
       });
     }
 
-    const avgLineCompliance = numLineas > 0 ? complianceSum / numLineas : 0;
-    const dayGastos = gastos
+    const avgLineCompliance = isTarea
+      ? (p.num_personas * (config?.puntos_objetivo_dia ?? 10.00) > 0 ? (dayPuntosAchieved / (p.num_personas * (config?.puntos_objetivo_dia ?? 10.00))) * 100 : 0)
+      : (numLineas > 0 ? complianceSum / numLineas : 0);
+    const dayGastos = isTarea ? 0 : gastos
       .filter(g => g.fecha === p.fecha && g.brigada_id === p.brigada_id)
       .reduce((sum, g) => sum + g.importe, 0);
-    const dayMargin = revenue - dayGastos;
+    const dayMargin = isTarea ? 0 : revenue - dayGastos;
 
     return {
       fecha: p.fecha,
@@ -104,17 +138,33 @@ export default function DashboardView() {
   const handleExportCSV = () => {
     let csvContent = 'data:text/csv;charset=utf-8,\uFEFF';
     // Encabezado
-    csvContent += 'Brigada,Encargado,Partes Registrados,Metros Acumulados,Ingresos Generados (€),Gastos Imputados (€),Margen Neto (€),Cumplimiento Medio (%),Semáforo\n';
+    if (isTarea) {
+      csvContent += 'Brigada,Encargado,Partes Registrados,Tareas Realizadas (uds),Puntos Conseguidos,Cumplimiento Medio (%),Semáforo\n';
+    } else {
+      csvContent += 'Brigada,Encargado,Partes Registrados,Metros Acumulados,Ingresos Generados (€),Gastos Imputados (€),Margen Neto (€),Cumplimiento Medio (%),Semáforo\n';
+    }
     
     // Contenido
     brigadeMetricsList.forEach(item => {
-      csvContent += `"${item.brigadaNombre}","${item.jefeNombre}",${item.numPartes},${item.metrosAcumulados.toFixed(1)},${item.revenue.toFixed(2)},${item.expenses.toFixed(2)},${item.margin.toFixed(2)},${item.averageCompliance.toFixed(1)}%,"${item.status.toUpperCase()}"\n`;
+      if (isTarea) {
+        let pointsAchieved = 0;
+        partes.forEach(p => {
+          if (p.brigada_id === item.brigadaId && p.fecha >= fechaInicio && p.fecha <= fechaFin) {
+            p.lineas?.forEach(l => {
+              pointsAchieved += l.metros_ejecutados * ((l as any).partida_puntos ?? 0);
+            });
+          }
+        });
+        csvContent += `"${item.brigadaNombre}","${item.jefeNombre}",${item.numPartes},${item.metrosAcumulados.toFixed(1)},${pointsAchieved.toFixed(1)},${item.averageCompliance.toFixed(1)}%,"${item.status.toUpperCase()}"\n`;
+      } else {
+        csvContent += `"${item.brigadaNombre}","${item.jefeNombre}",${item.numPartes},${item.metrosAcumulados.toFixed(1)},${item.revenue.toFixed(2)},${item.expenses.toFixed(2)},${item.margin.toFixed(2)},${item.averageCompliance.toFixed(1)}%,"${item.status.toUpperCase()}"\n`;
+      }
     });
 
     const encodedUri = encodeURI(csvContent);
     const link = document.createElement('a');
     link.setAttribute('href', encodedUri);
-    link.setAttribute('download', `kontrol_rendimiento_${fechaInicio}_a_${fechaFin}.csv`);
+    link.setAttribute('download', isTarea ? `kontrol_puntos_${fechaInicio}_a_${fechaFin}.csv` : `kontrol_rendimiento_${fechaInicio}_a_${fechaFin}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -166,7 +216,7 @@ export default function DashboardView() {
           <h3 style={{ fontSize: '1rem', margin: 0 }}>Evolución Temporal de Rendimiento</h3>
           <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem' }}>
             <span style={{ color: 'var(--status-blue)', fontWeight: 600 }}>● Cumplimiento (%)</span>
-            <span style={{ color: '#d97706', fontWeight: 600 }}>■ Margen (€)</span>
+            {!isTarea && <span style={{ color: '#d97706', fontWeight: 600 }}>■ Margen (€)</span>}
           </div>
         </div>
 
@@ -199,13 +249,15 @@ export default function DashboardView() {
           />
           
           {/* Gráfico de Margen (Línea Amarilla/Marrón) */}
-          <polyline
-            fill="none"
-            stroke="#d97706"
-            strokeWidth="2"
-            strokeDasharray="3 2"
-            points={marginPoints}
-          />
+          {!isTarea && (
+            <polyline
+              fill="none"
+              stroke="#d97706"
+              strokeWidth="2"
+              strokeDasharray="3 2"
+              points={marginPoints}
+            />
+          )}
 
           {/* Puntos y Etiquetas */}
           {chartDataPoints.map((d, idx) => {
@@ -218,7 +270,7 @@ export default function DashboardView() {
                 {/* Punto cumplimiento */}
                 <circle cx={x} cy={yComp} r="4" fill="var(--status-blue)" />
                 {/* Punto margen */}
-                <rect x={x - 3} y={yMarg - 3} width="6" height="6" fill="#d97706" />
+                {!isTarea && <rect x={x - 3} y={yMarg - 3} width="6" height="6" fill="#d97706" />}
 
                 {/* Fecha en eje X (primer, intermedio y último punto) */}
                 {(idx === 0 || idx === chartDataPoints.length - 1 || (chartDataPoints.length > 2 && idx === Math.floor(chartDataPoints.length / 2))) && (
@@ -323,13 +375,13 @@ export default function DashboardView() {
         
         <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.25rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
           <span style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
-            Volumen Ejecutado
+            {isTarea ? 'Tareas Realizadas' : 'Volumen Ejecutado'}
           </span>
           <h2 style={{ fontSize: '1.8rem', margin: '0.25rem 0 0.5rem 0', fontWeight: 700 }}>
-            {totalMetros.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m
+            {totalMetros.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} {isTarea ? 'uds' : 'm'}
           </h2>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-            Total metros registrados
+            {isTarea ? 'Total tareas completadas' : 'Total metros registrados'}
           </span>
         </div>
 
@@ -345,22 +397,36 @@ export default function DashboardView() {
           </span>
         </div>
 
-        <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.25rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
-          <span style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
-            Margen Neto Consolidado
-          </span>
-          <h2 style={{
-            fontSize: '1.8rem',
-            margin: '0.25rem 0 0.5rem 0',
-            fontWeight: 700,
-            color: totalMargin > 0 ? 'var(--status-green)' : totalMargin < 0 ? 'var(--status-red)' : 'inherit'
-          }}>
-            {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(totalMargin)}
-          </h2>
-          <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-            Ingresos: {totalRevenue.toFixed(0)}€ | Gastos: {totalExpenses.toFixed(0)}€
-          </span>
-        </div>
+        {isTarea ? (
+          <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.25rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
+            <span style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
+              Puntos Totales Conseguidos
+            </span>
+            <h2 style={{ fontSize: '1.8rem', margin: '0.25rem 0 0.5rem 0', fontWeight: 700, color: 'var(--status-blue)' }}>
+              {totalPuntosAchieved.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pts
+            </h2>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
+              Objetivo: {totalPuntosTarget.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pts
+            </span>
+          </div>
+        ) : (
+          <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.25rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
+            <span style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
+              Margen Neto Consolidado
+            </span>
+            <h2 style={{
+              fontSize: '1.8rem',
+              margin: '0.25rem 0 0.5rem 0',
+              fontWeight: 700,
+              color: totalMargin > 0 ? 'var(--status-green)' : totalMargin < 0 ? 'var(--status-red)' : 'inherit'
+            }}>
+              {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(totalMargin)}
+            </h2>
+            <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
+              Ingresos: {totalRevenue.toFixed(0)}€ | Gastos: {totalExpenses.toFixed(0)}€
+            </span>
+          </div>
+        )}
 
         <div style={{ 
           backgroundColor: totalStatus === 'rojo' ? 'var(--status-red-bg)' : totalStatus === 'verde' ? 'var(--status-green-bg)' : 'var(--status-blue-bg)', 
@@ -373,7 +439,7 @@ export default function DashboardView() {
             Estado Global de Obra
           </span>
           <h2 style={{ fontSize: '1.6rem', margin: '0.25rem 0 0.5rem 0', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <span>{totalStatus === 'rojo' ? (totalMargin < 0 ? '● PÉRDIDAS' : '● DEFICIENTE') : totalStatus === 'verde' ? '▲ ESTABLE' : '★ EXCELENTE'}</span>
+            <span>{totalStatus === 'rojo' ? (isTarea ? '● DEFICIENTE' : (totalMargin < 0 ? '● PÉRDIDAS' : '● DEFICIENTE')) : totalStatus === 'verde' ? '▲ ESTABLE' : '★ EXCELENTE'}</span>
           </h2>
           <span style={{ fontSize: '0.8rem', opacity: 0.85 }}>
             Balance del periodo filtrado
@@ -395,10 +461,11 @@ export default function DashboardView() {
               <th>Brigada</th>
               <th>Jefe de Equipo</th>
               <th style={{ textAlign: 'center' }}>Nº Partes</th>
-              <th style={{ textAlign: 'right' }}>Metros Acum.</th>
-              <th style={{ textAlign: 'right' }}>Ingresos Gen.</th>
-              <th style={{ textAlign: 'right' }}>Gastos Real.</th>
-              <th style={{ textAlign: 'right' }}>Margen Neto</th>
+              <th style={{ textAlign: 'right' }}>{isTarea ? 'Tareas Realizadas' : 'Metros Acum.'}</th>
+              {!isTarea && <th style={{ textAlign: 'right' }}>Ingresos Gen.</th>}
+              {!isTarea && <th style={{ textAlign: 'right' }}>Gastos Real.</th>}
+              {!isTarea && <th style={{ textAlign: 'right' }}>Margen Neto</th>}
+              {isTarea && <th style={{ textAlign: 'right' }}>Puntos Cons.</th>}
               <th style={{ textAlign: 'right' }}>% Cumpl. Medio</th>
               <th style={{ textAlign: 'center' }}>Semáforo</th>
             </tr>
@@ -410,28 +477,39 @@ export default function DashboardView() {
               const formattedExpenses = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(item.expenses);
               const formattedMargin = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(item.margin);
 
+              let pointsAchieved = 0;
+              if (isTarea) {
+                partes.forEach(p => {
+                  if (p.brigada_id === item.brigadaId && p.fecha >= fechaInicio && p.fecha <= fechaFin) {
+                    p.lineas?.forEach(l => {
+                      pointsAchieved += l.metros_ejecutados * ((l as any).partida_puntos ?? 0);
+                    });
+                  }
+                });
+              }
+
               return (
                 <tr key={item.brigadaId} style={{ cursor: 'pointer' }} onClick={() => handleRowClick(item.brigadaId)} title="Hacer clic para ver los partes diarios de esta cuadrilla">
                   <td style={{ fontWeight: 600 }}>{item.brigadaNombre}</td>
                   <td>{item.jefeNombre}</td>
                   <td style={{ textAlign: 'center' }}>{item.numPartes}</td>
-                  <td style={{ textAlign: 'right' }}>{item.metrosAcumulados.toFixed(1)} m</td>
-                  <td style={{ textAlign: 'right' }}>{formattedRevenue}</td>
-                  <td style={{ textAlign: 'right' }}>{formattedExpenses}</td>
-                  <td style={{
+                  <td style={{ textAlign: 'right' }}>{item.metrosAcumulados.toFixed(1)} {isTarea ? 'uds' : 'm'}</td>
+                  {!isTarea && <td style={{ textAlign: 'right' }}>{formattedRevenue}</td>}
+                  {!isTarea && <td style={{ textAlign: 'right' }}>{formattedExpenses}</td>}
+                  {!isTarea && <td style={{
                     textAlign: 'right',
                     fontWeight: 600,
                     color: item.margin > 0 ? 'var(--status-green)' : item.margin < 0 ? 'var(--status-red)' : 'inherit'
-                  }}>
-                    {formattedMargin}
-                  </td>
+                  }}>{formattedMargin}</td>}
+                  {isTarea && <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--status-blue)' }}>{pointsAchieved.toFixed(1)} pts</td>}
                   <td style={{ textAlign: 'right', fontWeight: 600 }}>{roundedCompliance}%</td>
                   <td style={{ textAlign: 'center' }}>
                     <PerformanceTrafficLight
                       status={item.status}
                       compliance={item.averageCompliance}
-                      margin={item.margin}
+                      margin={isTarea ? 1 : item.margin}
                       compact={true}
+                      isTarea={isTarea}
                     />
                   </td>
                 </tr>
@@ -439,7 +517,7 @@ export default function DashboardView() {
             })}
             {brigadeMetricsList.length === 0 && (
               <tr>
-                <td colSpan={9} style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: '2rem' }}>
+                <td colSpan={isTarea ? 7 : 9} style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: '2rem' }}>
                   No hay brigadas registradas en el sistema.
                 </td>
               </tr>

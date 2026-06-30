@@ -5,13 +5,15 @@ interface TrafficLightProps {
   compliance: number;
   margin: number;
   compact?: boolean;
+  isTarea?: boolean;
 }
 
 export default function PerformanceTrafficLight({
   status,
   compliance,
   margin,
-  compact = false
+  compact = false,
+  isTarea = false
 }: TrafficLightProps) {
   const roundedCompliance = compliance.toFixed(1);
   const formattedMargin = new Intl.NumberFormat('es-ES', {
@@ -25,22 +27,22 @@ export default function PerformanceTrafficLight({
       color: 'var(--status-red)',
       bg: 'var(--status-red-bg)',
       border: 'var(--status-red-border)',
-      label: margin < 0 ? 'Pérdidas' : 'Deficiente',
-      desc: margin < 0 ? 'Margen negativo (pérdidas)' : 'No cumple objetivo de rendimiento'
+      label: isTarea ? 'Deficiente' : (margin < 0 ? 'Pérdidas' : 'Deficiente'),
+      desc: isTarea ? 'No cumple objetivo de puntos' : (margin < 0 ? 'Margen negativo (pérdidas)' : 'No cumple objetivo de rendimiento')
     },
     verde: {
       color: 'var(--status-green)',
       bg: 'var(--status-green-bg)',
       border: 'var(--status-green-border)',
       label: 'Estable',
-      desc: 'Cumple objetivo con margen positivo'
+      desc: isTarea ? 'Cumple objetivo de puntos' : 'Cumple objetivo con margen positivo'
     },
     azul: {
       color: 'var(--status-blue)',
       bg: 'var(--status-blue-bg)',
       border: 'var(--status-blue-border)',
       label: 'Sobresaliente',
-      desc: 'Supera objetivo con margen positivo'
+      desc: isTarea ? 'Supera objetivo de puntos' : 'Supera objetivo con margen positivo'
     }
   };
 
@@ -86,7 +88,7 @@ export default function PerformanceTrafficLight({
           border: `1px solid ${style.border}`,
           color: style.color
         }}
-        title={`${style.label}: ${style.desc} (${roundedCompliance}% cumpl., ${formattedMargin} margen)`}
+        title={isTarea ? `${style.label}: ${style.desc} (${roundedCompliance}% cumpl.)` : `${style.label}: ${style.desc} (${roundedCompliance}% cumpl., ${formattedMargin} margen)`}
       >
         <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center' }}>
           {renderIcon(10)}
@@ -109,7 +111,7 @@ export default function PerformanceTrafficLight({
         color: style.color
       }}
       role="status"
-      aria-label={`Rendimiento: ${style.label}. Cumplimiento ${roundedCompliance}%. Margen ${formattedMargin}`}
+      aria-label={isTarea ? `Rendimiento: ${style.label}. Cumplimiento ${roundedCompliance}%.` : `Rendimiento: ${style.label}. Cumplimiento ${roundedCompliance}%. Margen ${formattedMargin}`}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
@@ -123,16 +125,26 @@ export default function PerformanceTrafficLight({
         <span style={{ fontSize: '0.85rem', opacity: 0.85 }}>{style.desc}</span>
       </div>
       
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginTop: '0.25rem', paddingTop: '0.5rem', borderTop: `1px dashed ${style.border}` }}>
+      <div style={{ 
+        display: 'grid', 
+        gridTemplateColumns: isTarea ? '1fr' : '1fr 1fr', 
+        gap: '1rem', 
+        marginTop: '0.25rem', 
+        paddingTop: '0.5rem', 
+        borderTop: `1px dashed ${style.border}` 
+      }}>
         <div>
           <span style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', opacity: 0.8 }}>Cumplimiento</span>
           <span style={{ fontSize: '1.15rem', fontWeight: 700 }}>{roundedCompliance}%</span>
         </div>
-        <div>
-          <span style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', opacity: 0.8 }}>Margen Neto</span>
-          <span style={{ fontSize: '1.15rem', fontWeight: 700 }}>{formattedMargin}</span>
-        </div>
+        {!isTarea && (
+          <div>
+            <span style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', opacity: 0.8 }}>Margen Neto</span>
+            <span style={{ fontSize: '1.15rem', fontWeight: 700 }}>{formattedMargin}</span>
+          </div>
+        )}
       </div>
     </div>
   );
 }
+

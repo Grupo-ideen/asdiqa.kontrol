@@ -17,6 +17,7 @@ export default function ConfigView() {
   const [umbVerde, setUmbVerde] = useState(config?.umbral_verde || 100);
   const [umbAzul, setUmbAzul] = useState(config?.umbral_azul || 110);
   const [margenMin, setMargenMin] = useState(config?.margen_minimo || 0);
+  const [puntosObjetivoDia, setPuntosObjetivoDia] = useState(config?.puntos_objetivo_dia || 10);
   const [configSaving, setConfigSaving] = useState(false);
   const [configMsg, setConfigMsg] = useState('');
 
@@ -24,12 +25,30 @@ export default function ConfigView() {
   const [selectedPartida, setSelectedPartida] = useState<Partida | null>(null);
   const [partidaCodigo, setPartidaCodigo] = useState('');
   const [partidaDesc, setPartidaDesc] = useState('');
-  const [partidaUnidad, setPartidaUnidad] = useState('m');
+  const [partidaUnidad, setPartidaUnidad] = useState(currentObra?.tipo === 'tarea' ? 'ud' : 'm');
   const [partidaPrecio, setPartidaPrecio] = useState(0);
   const [partidaMedicion, setPartidaMedicion] = useState(0);
   const [partidaRend, setPartidaRend] = useState(100);
   const [csvError, setCsvError] = useState('');
   const [csvSuccess, setCsvSuccess] = useState('');
+
+  // Sincronizar estado cuando cambia la configuración o la obra actual
+  useEffect(() => {
+    if (config) {
+      setRendDefault(config.rendimiento_default || 100);
+      setUmbVerde(config.umbral_verde || 100);
+      setUmbAzul(config.umbral_azul || 110);
+      setMargenMin(config.margen_minimo || 0);
+      setPuntosObjetivoDia(config.puntos_objetivo_dia || 10);
+    }
+    if (!selectedPartida) {
+      setPartidaUnidad(currentObra?.tipo === 'tarea' ? 'ud' : 'm');
+    }
+    // Si la obra es de tipo tarea y estamos en la pestaña de recursos, redirigir a umbrales
+    if (currentObra?.tipo === 'tarea' && activeTab === 'recursos') {
+      setActiveTab('umbrales');
+    }
+  }, [config, currentObra, selectedPartida, activeTab]);
 
   // Estado para brigadas
   const [selectedBrigada, setSelectedBrigada] = useState<Brigada | null>(null);
@@ -99,6 +118,7 @@ export default function ConfigView() {
   const [selectedObra, setSelectedObra] = useState<Obra | null>(null);
   const [obraNombre, setObraNombre] = useState('');
   const [obraDesc, setObraDesc] = useState('');
+  const [obraTipo, setObraTipo] = useState<'metro' | 'tarea'>('metro');
   const [userAccessMapping, setUserAccessMapping] = useState<Record<string, string[]>>({}); // usuario_id -> array de obra_id
 
   // Cargar mapeos de accesos al entrar a la tab
@@ -133,12 +153,14 @@ export default function ConfigView() {
       const oData: Obra = {
         id: selectedObra?.id || '',
         nombre: obraNombre,
-        descripcion: obraDesc
+        descripcion: obraDesc,
+        tipo: obraTipo
       };
       await Services.saveObra(oData);
       setSelectedObra(null);
       setObraNombre('');
       setObraDesc('');
+      setObraTipo('metro');
       await refreshAll();
       showToast('Obra guardada correctamente.', 'success');
     } catch (err) {
@@ -151,6 +173,7 @@ export default function ConfigView() {
     setSelectedObra(o);
     setObraNombre(o.nombre);
     setObraDesc(o.descripcion || '');
+    setObraTipo(o.tipo || 'metro');
   };
 
   const handleDeleteObra = (id: string) => {
@@ -270,7 +293,8 @@ export default function ConfigView() {
         rendimiento_default: Number(rendDefault),
         umbral_verde: Number(umbVerde),
         umbral_azul: Number(umbAzul),
-        margen_minimo: Number(margenMin)
+        margen_minimo: Number(margenMin),
+        puntos_objetivo_dia: Number(puntosObjetivoDia)
       });
       setConfigMsg('Configuración guardada correctamente.');
       await refreshAll();
@@ -293,9 +317,10 @@ export default function ConfigView() {
         codigo: partidaCodigo,
         descripcion: partidaDesc,
         unidad: partidaUnidad,
-        precio_unitario: Number(partidaPrecio),
-        medicion_contrato: Number(partidaMedicion),
-        rendimiento_objetivo: Number(partidaRend),
+        precio_unitario: currentObra?.tipo === 'tarea' ? 0 : Number(partidaPrecio),
+        medicion_contrato: currentObra?.tipo === 'tarea' ? 0 : Number(partidaMedicion),
+        rendimiento_objetivo: currentObra?.tipo === 'tarea' ? 0 : Number(partidaRend),
+        puntos: currentObra?.tipo === 'tarea' ? Number(partidaPrecio) : 0,
         obra_id: currentObra?.id || ''
       };
 
@@ -303,10 +328,10 @@ export default function ConfigView() {
       setSelectedPartida(null);
       resetPartidaForm();
       await refreshAll();
-      showToast('Partida guardada correctamente.', 'success');
+      showToast(currentObra?.tipo === 'tarea' ? 'Tarea guardada correctamente.' : 'Partida guardada correctamente.', 'success');
     } catch (err) {
       console.error(err);
-      showToast('Error al guardar partida.', 'error');
+      showToast(currentObra?.tipo === 'tarea' ? 'Error al guardar tarea.' : 'Error al guardar partida.', 'error');
     }
   };
 
@@ -315,15 +340,18 @@ export default function ConfigView() {
     setPartidaCodigo(p.codigo);
     setPartidaDesc(p.descripcion);
     setPartidaUnidad(p.unidad);
-    setPartidaPrecio(p.precio_unitario);
+    setPartidaPrecio(currentObra?.tipo === 'tarea' ? (p.puntos || p.precio_unitario) : p.precio_unitario);
     setPartidaMedicion(p.medicion_contrato);
     setPartidaRend(p.rendimiento_objetivo);
   };
 
   const handleDeletePartida = (id: string) => {
+    const isTarea = currentObra?.tipo === 'tarea';
     showConfirm(
-      '¿Borrar partida de obra?',
-      '¿Estás seguro de borrar esta partida? Se desvinculará de los partes de trabajo y gastos asociados de forma permanente.',
+      isTarea ? '¿Borrar tarea de obra?' : '¿Borrar partida de obra?',
+      isTarea 
+        ? '¿Estás seguro de borrar esta tarea? Se desvinculará de los partes de trabajo asociados de forma permanente.' 
+        : '¿Estás seguro de borrar esta partida? Se desvinculará de los partes de trabajo y gastos asociados de forma permanente.',
       async () => {
         await Services.deletePartida(id);
         await refreshAll();
@@ -335,7 +363,7 @@ export default function ConfigView() {
     setSelectedPartida(null);
     setPartidaCodigo('');
     setPartidaDesc('');
-    setPartidaUnidad('m');
+    setPartidaUnidad(currentObra?.tipo === 'tarea' ? 'ud' : 'm');
     setPartidaPrecio(0);
     setPartidaMedicion(0);
     setPartidaRend(100);
@@ -357,8 +385,11 @@ export default function ConfigView() {
         const lines = text.split(/\r?\n/);
         const header = lines[0].toLowerCase().split(',');
         
+        const isTarea = currentObra?.tipo === 'tarea';
         // Validar columnas
-        const required = ['codigo', 'descripcion', 'unidad', 'precio_unitario', 'medicion_contrato', 'rendimiento_objetivo'];
+        const required = isTarea 
+          ? ['codigo', 'descripcion', 'unidad', 'puntos']
+          : ['codigo', 'descripcion', 'unidad', 'precio_unitario', 'medicion_contrato', 'rendimiento_objetivo'];
         const missing = required.filter(col => !header.includes(col));
         if (missing.length > 0) {
           throw new Error(`Faltan columnas requeridas en el CSV: ${missing.join(', ')}`);
@@ -385,10 +416,11 @@ export default function ConfigView() {
             id: `p-${Date.now()}-${i}`,
             codigo: rowData.codigo,
             descripcion: rowData.descripcion,
-            unidad: rowData.unidad || 'm',
-            precio_unitario: Number(rowData.precio_unitario) || 0,
-            medicion_contrato: Number(rowData.medicion_contrato) || 0,
-            rendimiento_objetivo: Number(rowData.rendimiento_objetivo) || 100,
+            unidad: rowData.unidad || (isTarea ? 'ud' : 'm'),
+            precio_unitario: isTarea ? 0 : (Number(rowData.precio_unitario) || 0),
+            medicion_contrato: isTarea ? 0 : (Number(rowData.medicion_contrato) || 0),
+            rendimiento_objetivo: isTarea ? 0 : (Number(rowData.rendimiento_objetivo) || 100),
+            puntos: isTarea ? (Number(rowData.puntos) || 0) : 0,
             obra_id: currentObra?.id || ''
           });
         }
@@ -398,7 +430,7 @@ export default function ConfigView() {
         }
 
         await Services.importPartidas(currentObra?.id || '', parsedPartidas);
-        setCsvSuccess(`✓ Se importaron con éxito ${parsedPartidas.length} partidas.`);
+        setCsvSuccess(`✓ Se importaron con éxito ${parsedPartidas.length} ${isTarea ? 'tareas' : 'partidas'}.`);
         await refreshAll();
       } catch (err) {
         const error = err as Error;
@@ -491,7 +523,7 @@ export default function ConfigView() {
             fontWeight: activeTab === 'partidas' ? 600 : 400
           }}
         >
-          Partidas de Obra
+          {currentObra?.tipo === 'tarea' ? 'Tareas de Obra' : 'Partidas de Obra'}
         </button>
         <button
           onClick={() => setActiveTab('brigadas')}
@@ -519,19 +551,21 @@ export default function ConfigView() {
         >
           Usuarios y Roles
         </button>
-        <button
-          onClick={() => setActiveTab('recursos')}
-          style={{
-            border: 'none',
-            borderBottom: activeTab === 'recursos' ? '2px solid var(--text-primary)' : 'none',
-            borderRadius: 0,
-            padding: '0.5rem 1rem',
-            background: 'none',
-            fontWeight: activeTab === 'recursos' ? 600 : 400
-          }}
-        >
-          Recursos y Costes
-        </button>
+        {currentObra?.tipo !== 'tarea' && (
+          <button
+            onClick={() => setActiveTab('recursos')}
+            style={{
+              border: 'none',
+              borderBottom: activeTab === 'recursos' ? '2px solid var(--text-primary)' : 'none',
+              borderRadius: 0,
+              padding: '0.5rem 1rem',
+              background: 'none',
+              fontWeight: activeTab === 'recursos' ? 600 : 400
+            }}
+          >
+            Recursos y Costes
+          </button>
+        )}
         <button
           onClick={() => setActiveTab('obras')}
           style={{
@@ -552,17 +586,32 @@ export default function ConfigView() {
         <div style={{ maxWidth: '600px', backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
           <h2 style={{ fontSize: '1.15rem', marginBottom: '1rem' }}>Umbrales del Semáforo de Rendimiento</h2>
           <form onSubmit={handleSaveConfig} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div>
-              <label htmlFor="rend-default">Rendimiento objetivo por defecto (m/persona/día):</label>
-              <input
-                type="number"
-                id="rend-default"
-                value={rendDefault}
-                onChange={e => setRendDefault(Number(e.target.value))}
-                min="1"
-                required
-              />
-            </div>
+            {currentObra?.tipo === 'tarea' ? (
+              <div>
+                <label htmlFor="puntos-objetivo">Puntos objetivo por persona/día:</label>
+                <input
+                  type="number"
+                  id="puntos-objetivo"
+                  value={puntosObjetivoDia}
+                  onChange={e => setPuntosObjetivoDia(Number(e.target.value))}
+                  min="0.5"
+                  step="0.5"
+                  required
+                />
+              </div>
+            ) : (
+              <div>
+                <label htmlFor="rend-default">Rendimiento objetivo por defecto (m/persona/día):</label>
+                <input
+                  type="number"
+                  id="rend-default"
+                  value={rendDefault}
+                  onChange={e => setRendDefault(Number(e.target.value))}
+                  min="1"
+                  required
+                />
+              </div>
+            )}
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
@@ -591,19 +640,21 @@ export default function ConfigView() {
               </div>
             </div>
 
-            <div>
-              <label htmlFor="margen-min">Margen mínimo aceptable para Verde/Azul (€):</label>
-              <input
-                type="number"
-                id="margen-min"
-                value={margenMin}
-                onChange={e => setMargenMin(Number(e.target.value))}
-                required
-              />
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-                Si el beneficio de un parte menos sus gastos es menor o igual a este valor, el semáforo será Rojo independientemente del rendimiento en metros.
-              </span>
-            </div>
+            {currentObra?.tipo !== 'tarea' && (
+              <div>
+                <label htmlFor="margen-min">Margen mínimo aceptable para Verde/Azul (€):</label>
+                <input
+                  type="number"
+                  id="margen-min"
+                  value={margenMin}
+                  onChange={e => setMargenMin(Number(e.target.value))}
+                  required
+                />
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                  Si el beneficio de un parte menos sus gastos es menor o igual a este valor, el semáforo será Rojo independientemente del rendimiento en metros.
+                </span>
+              </div>
+            )}
 
             <button type="submit" className="primary" disabled={configSaving} style={{ marginTop: '0.5rem', alignSelf: 'flex-start' }}>
               {configSaving ? 'Guardando...' : 'Guardar Umbrales'}
@@ -625,29 +676,31 @@ export default function ConfigView() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
             <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
               <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>
-                {selectedPartida ? 'Editar Partida' : 'Nueva Partida de Presupuesto'}
+                {selectedPartida 
+                  ? (currentObra?.tipo === 'tarea' ? 'Editar Tarea' : 'Editar Partida') 
+                  : (currentObra?.tipo === 'tarea' ? 'Nueva Tarea y Puntos' : 'Nueva Partida de Presupuesto')}
               </h2>
               <form onSubmit={handleSavePartida} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <div>
-                  <label htmlFor="part-codigo">Código Partida (Único):</label>
+                  <label htmlFor="part-codigo">{currentObra?.tipo === 'tarea' ? 'Código Tarea (Único):' : 'Código Partida (Único):'}</label>
                   <input
                     type="text"
                     id="part-codigo"
                     value={partidaCodigo}
                     onChange={e => setPartidaCodigo(e.target.value)}
-                    placeholder="Ej. 04.02.01.05"
+                    placeholder={currentObra?.tipo === 'tarea' ? "Ej. T-01" : "Ej. 04.02.01.05"}
                     required
                     disabled={!!selectedPartida}
                   />
                 </div>
                 <div>
-                  <label htmlFor="part-desc">Descripción:</label>
+                  <label htmlFor="part-desc">{currentObra?.tipo === 'tarea' ? 'Nombre de la Tarea:' : 'Descripción:'}</label>
                   <input
                     type="text"
                     id="part-desc"
                     value={partidaDesc}
                     onChange={e => setPartidaDesc(e.target.value)}
-                    placeholder="Tendido en zanja..."
+                    placeholder={currentObra?.tipo === 'tarea' ? "Ej. Fusionado fibra..." : "Tendido en zanja..."}
                     required
                   />
                 </div>
@@ -659,48 +712,50 @@ export default function ConfigView() {
                       id="part-unidad"
                       value={partidaUnidad}
                       onChange={e => setPartidaUnidad(e.target.value)}
-                      placeholder="m, ud, m2"
+                      placeholder="ud, m, etc."
                       required
                     />
                   </div>
                   <div>
-                    <label htmlFor="part-precio">Precio Unitario (€):</label>
+                    <label htmlFor="part-precio">{currentObra?.tipo === 'tarea' ? 'Puntos Otorgados:' : 'Precio Unitario (€):'}</label>
                     <input
                       type="number"
                       id="part-precio"
                       value={partidaPrecio}
                       onChange={e => setPartidaPrecio(Number(e.target.value))}
-                      step="0.01"
+                      step={currentObra?.tipo === 'tarea' ? "0.1" : "0.01"}
                       min="0"
                       required
                     />
                   </div>
                 </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                  <div>
-                    <label htmlFor="part-medicion">Medición Contrato:</label>
-                    <input
-                      type="number"
-                      id="part-medicion"
-                      value={partidaMedicion}
-                      onChange={e => setPartidaMedicion(Number(e.target.value))}
-                      min="0"
-                      required
-                    />
+                {currentObra?.tipo !== 'tarea' && (
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                    <div>
+                      <label htmlFor="part-medicion">Medición Contrato:</label>
+                      <input
+                        type="number"
+                        id="part-medicion"
+                        value={partidaMedicion}
+                        onChange={e => setPartidaMedicion(Number(e.target.value))}
+                        min="0"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="part-rend">Objetivo (unidad/persona/día):</label>
+                      <input
+                        type="number"
+                        id="part-rend"
+                        value={partidaRend}
+                        onChange={e => setPartidaRend(Number(e.target.value))}
+                        min="0.1"
+                        step="0.1"
+                        required
+                      />
+                    </div>
                   </div>
-                  <div>
-                    <label htmlFor="part-rend">Objetivo (unidad/persona/día):</label>
-                    <input
-                      type="number"
-                      id="part-rend"
-                      value={partidaRend}
-                      onChange={e => setPartidaRend(Number(e.target.value))}
-                      min="0.1"
-                      step="0.1"
-                      required
-                    />
-                  </div>
-                </div>
+                )}
 
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
                   <button type="submit" className="primary">
@@ -719,11 +774,22 @@ export default function ConfigView() {
             <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
               <div>
                 <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Importación Masiva (CSV)</h2>
-                <p style={{ fontSize: '0.85rem' }}>Sube un archivo de Excel exportado a CSV (.csv) con las partidas del presupuesto.</p>
-                <div style={{ fontSize: '0.75rem', backgroundColor: 'var(--bg-tertiary)', padding: '0.75rem', borderRadius: '4px', fontFamily: 'monospace', marginBottom: '1rem', whiteSpace: 'pre-wrap' }}>
-                  codigo,descripcion,unidad,precio_unitario,medicion_contrato,rendimiento_objetivo
-                  04.02.01.05,&quot;Tendido en zanja&quot;,m,0.51,408928,100
-                </div>
+                <p style={{ fontSize: '0.85rem' }}>
+                  {currentObra?.tipo === 'tarea' 
+                    ? 'Sube un archivo CSV (.csv) con las tareas de obra y sus puntos.' 
+                    : 'Sube un archivo de Excel exportado a CSV (.csv) con las partidas del presupuesto.'}
+                </p>
+                {currentObra?.tipo === 'tarea' ? (
+                  <div style={{ fontSize: '0.75rem', backgroundColor: 'var(--bg-tertiary)', padding: '0.75rem', borderRadius: '4px', fontFamily: 'monospace', marginBottom: '1rem', whiteSpace: 'pre-wrap' }}>
+                    codigo,descripcion,unidad,puntos
+                    T-01,&quot;Fusionado de fibra&quot;,ud,2.5
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '0.75rem', backgroundColor: 'var(--bg-tertiary)', padding: '0.75rem', borderRadius: '4px', fontFamily: 'monospace', marginBottom: '1rem', whiteSpace: 'pre-wrap' }}>
+                    codigo,descripcion,unidad,precio_unitario,medicion_contrato,rendimiento_objetivo
+                    04.02.01.05,&quot;Tendido en zanja&quot;,m,0.51,408928,100
+                  </div>
+                )}
                 
                 <div style={{ marginTop: '0.5rem' }}>
                   <label htmlFor="csv-file" className="button" style={{ display: 'inline-block', cursor: 'pointer', textAlign: 'center' }}>
@@ -748,16 +814,24 @@ export default function ConfigView() {
 
           {/* Tabla de partidas */}
           <div style={{ overflowX: 'auto' }}>
-            <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Listado de Partidas ({partidas.length})</h2>
+            <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>
+              {currentObra?.tipo === 'tarea' ? `Listado de Tareas (${partidas.length})` : `Listado de Partidas (${partidas.length})`}
+            </h2>
             <table>
               <thead>
                 <tr>
                   <th>Código</th>
                   <th>Descripción</th>
                   <th>Unidad</th>
-                  <th>Precio Unit.</th>
-                  <th>Med. Contrato</th>
-                  <th>Rend. Objetivo</th>
+                  {currentObra?.tipo === 'tarea' ? (
+                    <th>Puntos</th>
+                  ) : (
+                    <>
+                      <th>Precio Unit.</th>
+                      <th>Med. Contrato</th>
+                      <th>Rend. Objetivo</th>
+                    </>
+                  )}
                   <th style={{ textAlign: 'right' }}>Acciones</th>
                 </tr>
               </thead>
@@ -767,9 +841,15 @@ export default function ConfigView() {
                     <td style={{ fontWeight: 600 }}>{p.codigo}</td>
                     <td>{p.descripcion}</td>
                     <td>{p.unidad}</td>
-                    <td>{p.precio_unitario.toFixed(2)} €</td>
-                    <td>{p.medicion_contrato.toLocaleString('es-ES')}</td>
-                    <td>{p.rendimiento_objetivo} {p.unidad}/pers/día</td>
+                    {currentObra?.tipo === 'tarea' ? (
+                      <td style={{ fontWeight: 600, color: 'var(--status-blue)' }}>{p.puntos || p.precio_unitario} pts</td>
+                    ) : (
+                      <>
+                        <td>{p.precio_unitario.toFixed(2)} €</td>
+                        <td>{p.medicion_contrato.toLocaleString('es-ES')}</td>
+                        <td>{p.rendimiento_objetivo} {p.unidad}/pers/día</td>
+                      </>
+                    )}
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', gap: '0.25rem' }}>
                         <button
@@ -791,8 +871,10 @@ export default function ConfigView() {
                 ))}
                 {partidas.length === 0 && (
                   <tr>
-                    <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-tertiary)' }}>
-                      No hay partidas registradas. Créalas arriba o importa un CSV.
+                    <td colSpan={currentObra?.tipo === 'tarea' ? 5 : 7} style={{ textAlign: 'center', color: 'var(--text-tertiary)' }}>
+                      {currentObra?.tipo === 'tarea' 
+                        ? 'No hay tareas registradas. Créalas arriba o importa un CSV.' 
+                        : 'No hay partidas registradas. Créalas arriba o importa un CSV.'}
                     </td>
                   </tr>
                 )}
@@ -1037,7 +1119,7 @@ export default function ConfigView() {
       )}
 
       {/* 5. TAB RECURSOS */}
-      {activeTab === 'recursos' && (
+      {activeTab === 'recursos' && currentObra?.tipo !== 'tarea' && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem', alignItems: 'start' }}>
           {/* Formulario */}
           <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
@@ -1260,6 +1342,18 @@ export default function ConfigView() {
                   />
                 </div>
                 <div>
+                  <label htmlFor="obra-tipo">Tipo de Obra:</label>
+                  <select
+                    id="obra-tipo"
+                    value={obraTipo}
+                    onChange={e => setObraTipo(e.target.value as 'metro' | 'tarea')}
+                    style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                  >
+                    <option value="metro">Metro (Rendimiento por metros/persona/día)</option>
+                    <option value="tarea">Tareas (Basado en tareas y unidades)</option>
+                  </select>
+                </div>
+                <div>
                   <label htmlFor="obra-desc">Descripción / Detalles:</label>
                   <textarea
                     id="obra-desc"
@@ -1275,7 +1369,7 @@ export default function ConfigView() {
                     {selectedObra ? 'Actualizar' : 'Crear'}
                   </button>
                   {selectedObra && (
-                    <button type="button" onClick={() => { setSelectedObra(null); setObraNombre(''); setObraDesc(''); }}>
+                    <button type="button" onClick={() => { setSelectedObra(null); setObraNombre(''); setObraDesc(''); setObraTipo('metro'); }}>
                       Cancelar
                     </button>
                   )}
@@ -1290,6 +1384,7 @@ export default function ConfigView() {
                 <thead>
                   <tr>
                     <th>Nombre</th>
+                    <th>Tipo</th>
                     <th>Descripción</th>
                     <th style={{ textAlign: 'right' }}>Acciones</th>
                   </tr>
@@ -1298,6 +1393,20 @@ export default function ConfigView() {
                   {obras.map(o => (
                     <tr key={o.id}>
                       <td style={{ fontWeight: 600 }}>{o.nombre}</td>
+                      <td>
+                        <span style={{
+                          padding: '0.2rem 0.5rem',
+                          borderRadius: '4px',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          backgroundColor: o.tipo === 'tarea' ? 'rgba(59, 130, 246, 0.12)' : 'rgba(76, 189, 109, 0.12)',
+                          color: o.tipo === 'tarea' ? '#3b82f6' : '#4cbd6d',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.02em'
+                        }}>
+                          {o.tipo === 'tarea' ? 'Tarea' : 'Metro'}
+                        </span>
+                      </td>
                       <td style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{o.descripcion || 'Sin descripción'}</td>
                       <td style={{ textAlign: 'right' }}>
                         <div style={{ display: 'inline-flex', gap: '0.25rem' }}>
@@ -1320,7 +1429,7 @@ export default function ConfigView() {
                   ))}
                   {obras.length === 0 && (
                     <tr>
-                      <td colSpan={3} style={{ textAlign: 'center', color: 'var(--text-tertiary)' }}>
+                      <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-tertiary)' }}>
                         No hay obras registradas.
                       </td>
                     </tr>
