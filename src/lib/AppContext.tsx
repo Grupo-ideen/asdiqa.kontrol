@@ -139,7 +139,6 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       ]);
 
       setUsuarios(u);
-      setObras(allObs);
       setUsuariosObras(uObs);
 
       // 2. Resolver usuario conectado
@@ -170,7 +169,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           permittedObras = allObs.filter(o => userObraIds.includes(o.id));
         }
       }
-      setObras(loggedUser ? permittedObras : allObs);
+      setObras(permittedObras);
 
       // 4. Determinar obra activa
       let activeObra: Obra | null = null;

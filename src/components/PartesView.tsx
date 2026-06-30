@@ -269,7 +269,7 @@ export default function PartesView() {
                         <option value="">{currentObra?.tipo === 'tarea' ? 'Selecciona tarea...' : 'Selecciona partida de presupuesto...'}</option>
                         {partidas.map(p => (
                           <option key={p.id} value={p.id}>
-                            [{p.codigo}] {p.descripcion.substring(0, 50)}... ({currentObra?.tipo === 'tarea' ? `${Math.round(Number(p.puntos || p.precio_unitario))} pts` : `${isAdmin ? `${p.precio_unitario}€/${p.unidad}` : p.unidad}`})
+                            [{p.codigo}] {p.descripcion} ({currentObra?.tipo === 'tarea' ? `${Math.round(Number(p.puntos || p.precio_unitario))} pts` : `${isAdmin ? `${p.precio_unitario}€/${p.unidad}` : p.unidad}`})
                           </option>
                         ))}
                       </select>
