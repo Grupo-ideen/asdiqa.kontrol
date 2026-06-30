@@ -187,7 +187,9 @@ export default function PartesView() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1>Partes de Trabajo Diarios</h1>
-          <p>Registra las unidades de obra ejecutadas por cada brigada para calcular su rendimiento inmediato.</p>
+          {!isJefeEquipo && (
+            <p>Registra las unidades de obra ejecutadas por cada brigada para calcular su rendimiento inmediato.</p>
+          )}
         </div>
         {!isReadOnly && !isFormOpen && (
           <button onClick={handleOpenNewForm} className="primary">
@@ -255,20 +257,8 @@ export default function PartesView() {
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {formLineas.map((linea, index) => (
-                  <div
-                    key={index}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.75rem',
-                      flexWrap: 'wrap',
-                      backgroundColor: 'var(--bg-primary)',
-                      padding: '0.75rem',
-                      borderRadius: 'var(--border-radius)',
-                      border: '1px solid var(--border-color)'
-                    }}
-                  >
-                    <div style={{ flex: '2', minWidth: '200px' }}>
+                  <div key={index} className="linea-form-row">
+                    <div className="linea-field-select">
                       <label htmlFor={`partida-${index}`} style={{ display: 'none' }}>Partida</label>
                       <select
                         id={`partida-${index}`}
@@ -285,7 +275,7 @@ export default function PartesView() {
                       </select>
                     </div>
 
-                    <div style={{ flex: '1', minWidth: '100px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <div className="linea-field-qty">
                       <label htmlFor={`metros-${index}`} style={{ display: 'none' }}>Cantidad ejecutada</label>
                       <input
                         type="number"
@@ -308,9 +298,8 @@ export default function PartesView() {
                     {formLineas.length > 1 && (
                       <button
                         type="button"
-                        className="danger"
+                        className="danger linea-btn-delete"
                         onClick={() => handleRemoveLinea(index)}
-                        style={{ padding: '0.6rem', width: '2.5rem' }}
                         aria-label="Quitar línea"
                       >
                         ✕

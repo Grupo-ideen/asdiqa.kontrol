@@ -119,18 +119,9 @@ export default function Home() {
           </button>
         </div>
 
-        <div style={{
-          width: '100%',
-          maxWidth: '400px',
-          backgroundColor: 'var(--bg-secondary)',
-          border: '1px solid var(--border-color)',
-          borderRadius: 'var(--border-radius)',
-          padding: '2.5rem 2rem',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)'
-        }}>
+        <div className="login-card" style={{ maxWidth: '400px' }}>
           <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
-            <h1 style={{
-              fontSize: '1.75rem',
+            <h1 className="login-title" style={{
               fontWeight: 700,
               letterSpacing: '-0.03em',
               marginBottom: '0.5rem'
@@ -166,7 +157,7 @@ export default function Home() {
                 id="login-username"
                 value={username}
                 onChange={e => setUsername(e.target.value)}
-                placeholder="Nombre de usuario (ej. admin o carlos)"
+                placeholder="Nombre de usuario"
                 required
                 style={{ marginTop: '0.25rem' }}
               />
@@ -263,15 +254,7 @@ export default function Home() {
           </button>
         </div>
 
-        <div style={{
-          width: '100%',
-          maxWidth: '500px',
-          backgroundColor: 'var(--bg-secondary)',
-          border: '1px solid var(--border-color)',
-          borderRadius: 'var(--border-radius)',
-          padding: '3rem 2rem',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.03)'
-        }}>
+        <div className="login-card" style={{ maxWidth: '500px' }}>
           <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1rem' }}>Selecciona una Obra</h2>
           <p style={{ color: 'var(--text-tertiary)', fontSize: '0.9rem', marginBottom: '2rem', lineHeight: '1.5' }}>
             Para acceder al panel de control, por favor selecciona el proyecto u obra en el que deseas trabajar.

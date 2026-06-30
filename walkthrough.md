@@ -1,10 +1,40 @@
 # Resumen de Cambios: Soporte para Dos Tipos de Obras (Metro / Tarea) y UI/UX Optimizada
 
-Se ha completado e integrado con éxito el soporte de control de producción para obras basadas en **Tareas y Puntos** en todo el sistema. Además, se ha unificado el modo claro y oscuro, se ha implementado un favicon dinámico y se ha solucionado el contraste del icono del calendario en modo oscuro.
+Se ha completado e integrado con éxito el soporte de control de producción para obras basadas en **Tareas y Puntos** en todo el sistema. Además, se han implementado mejoras completas de diseño adaptable para dispositivos móviles en la cabecera principal, la pantalla de inicio de sesión y el formulario de partes diarios, definiendo además el modo claro como tema predeterminado.
 
 ## Cambios Realizados
 
-### 1. Base de Datos
+### 1. Tema Predeterminado (Modo Claro)
+- **[AppContext.tsx](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/src/lib/AppContext.tsx)**:
+  - Modificado el inicializador del tema en el contexto global de la aplicación.
+  - Al acceder por primera vez (sin un tema guardado en `localStorage`), la aplicación se carga estrictamente en **modo claro**, ignorando las preferencias globales de esquema del sistema para mantener una interfaz estándar uniforme.
+
+### 2. Cabecera (Header) Responsiva con Menú Desplegable (Mobile Drawer)
+- **[Header.tsx](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/src/components/Header.tsx)**:
+  - Rediseñada la cabecera para utilizar nombres de clases CSS estructuradas.
+  - Añadido estado `menuOpen` para controlar la visibilidad del menú en dispositivos móviles.
+  - Reubicado el botón selector de menú (`.menu-toggle-btn`) al final del layout del header de forma que el justificado flex lo alinee a la derecha de la barra en dispositivos móviles.
+  - En móviles, el selector de obra, el menú de navegación principal, la información de perfil y las acciones se colapsan dentro del panel desplegable (`.header-menu-drawer-mobile`).
+- **[globals.css](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/src/app/globals.css)**:
+  - Creadas las clases de diseño responsivo de la cabecera (`.app-header`, `.header-brand-wrapper`, `.menu-toggle-btn`, `.header-brand-title`, `.header-menu-drawer-mobile`).
+  - Al estar en viewports menores de `820px`, los controles principales de navegación de la cabecera se ocultan y pasan a mostrarse exclusivamente en el panel desplegable.
+
+### 3. Diseño Responsivo en Login y Selección de Obra
+- **[page.tsx](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/src/app/page.tsx)**:
+  - Reemplazados los estilos en línea de la tarjeta de inicio de sesión y la tarjeta de selección de obra por la clase CSS adaptable `.login-card`.
+  - Reemplazado el estilo de fuente en línea por la clase CSS `.login-title`.
+- **[globals.css](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/src/app/globals.css)**:
+  - Definida la clase `.login-card` con ancho de 100% y caja contenedora con bordes responsivos.
+  - Añadido un media query para pantallas con ancho menor a 480px, reduciendo el padding de la tarjeta y el tamaño del título de la aplicación (`ASDIQA.KONTROL`) para evitar desbordamientos u solapamientos laterales en móviles pequeños.
+
+### 4. Formulario de Partes de Trabajo Adaptable
+- **[PartesView.tsx](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/src/components/PartesView.tsx)**:
+  - Reestructuradas las filas de selección y cantidades de las tareas del formulario utilizando clases CSS estructuradas en lugar de layouts flex y min-widths en línea fijos.
+- **[globals.css](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/src/app/globals.css)**:
+  - Añadidas las clases `.linea-form-row`, `.linea-field-select`, `.linea-field-qty` y `.linea-btn-delete`.
+  - A través de media queries, cuando la pantalla es inferior a 550px las líneas de tareas del formulario se apilan verticalmente de forma fluida a ancho completo, permitiendo una fácil lectura y manipulación táctil en móviles.
+
+### 5. Base de Datos
 - **[schema.sql](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/schema.sql)**:
   - Añadida la columna `tipo` en `obras` (por defecto `'metro'`).
   - Añadida la columna `puntos` en la tabla `partidas` (por defecto `0.00`) para representar los puntos de cada tarea.
@@ -12,47 +42,14 @@ Se ha completado e integrado con éxito el soporte de control de producción par
 - **[migration_add_tipo_to_obras.sql](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/migration_add_tipo_to_obras.sql)**:
   - Creado script incremental para actualizar bases de datos de Supabase existentes.
 
-### 2. Contraste de Selector de Calendario en Modo Oscuro
+### 6. Contraste de Selector de Calendario en Modo Oscuro
 - **[globals.css](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/src/app/globals.css)**:
   - Añadida una regla CSS para invertir la tonalidad del icono selector nativo (`::-webkit-calendar-picker-indicator`) dentro de campos de entrada tipo fecha (`input[type="date"]`) cuando el tema activo es oscuro (`data-theme="dark"`).
-  - Esto garantiza que el icono sea blanco y perfectamente visible sobre fondos oscuros en navegadores Chrome, Edge, Safari y Opera.
 
-### 3. Favicon Dinámico
+### 7. Favicon Dinámico
 - **[AppContext.tsx](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/src/lib/AppContext.tsx)**:
   - Añadido un `useEffect` que monitorea el estado del proyecto activo para el mes actual y genera dinámicamente un favicon SVG codificado en base64 en el cliente.
-  - El favicon cambia el color de su punto central según el semáforo global consolidado del periodo:
-    - **Verde**: `#4cbd6d` (Estable/Adecuado)
-    - **Rojo**: `#c53030` (Deficiente/Pérdidas)
-    - **Azul**: `#2b6cb0` (Excelente)
-  - Por defecto o cuando no hay obra activa, el favicon se mantiene en color verde.
-
-### 4. Formato Simplificado de Unidades y Decimales para Obras tipo Tareas
-- **[DashboardView.tsx](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/src/components/DashboardView.tsx)**:
-  - Eliminado el sufijo `'uds'` en el volumen de tareas realizadas.
-  - Omitidos los decimales de las tareas ejecutadas y de los puntos totales (tanto logrados como objetivo), mostrándose como enteros limpios en tarjetas consolidadas y en la tabla de brigadas.
-  - Modificado el exportador CSV para generar valores enteros sin unidades en estas columnas.
-- **[PartesView.tsx](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/src/components/PartesView.tsx)**:
-  - Omitida la unidad al lado de los campos de entrada de tareas ejecutadas en el formulario.
-  - Eliminados los decimales en el desglose del histórico de partes para la cantidad de tareas e importes de puntos individuales y consolidados.
-  - Simplificados los textos en el desplegable de selección de tarea eliminando el sufijo unitario (ej: `[T-01] Fusionado fibra (5 pts)`).
-
-### 5. Modo Claro / Oscuro Unificado y Persistente
-- **[AppContext.tsx](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/src/lib/AppContext.tsx)**:
-  - Centralizado el estado de `theme` y el manejador `toggleTheme` dentro del contexto global de la aplicación.
-  - El tema se lee de `localStorage` (o de las preferencias del sistema si no existe) en el momento en que se monta la aplicación, aplicando de manera inmediata el atributo `data-theme` al documento raíz. Esto asegura que no haya saltos visuales al cargar la app.
-- **[Header.tsx](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/src/components/Header.tsx)**:
-  - Eliminado el estado de tema duplicado y los efectos locales; ahora consume directamente `theme` y `toggleTheme` de la llamada a `useApp()`.
-- **[page.tsx](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/src/app/page.tsx)**:
-  - Destructuradas las propiedades de tema de `useApp()`.
-  - Integrado un botón flotante y minimalista para cambiar de tema (claro/oscuro) en las vistas tempranas de **Iniciar Sesión (Login)** y de **Selección de Obra**.
-  - Añadido un botón complementario de "Cerrar Sesión" en la pantalla del selector de obra para una navegación óptima.
-
-### 6. Estilos y Layout Adaptable
-- **[globals.css](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/src/app/globals.css)**:
-  - Añadidas las reglas CSS de diseño adaptable `.config-grid-recursos` para priorizar el espacio de la tabla de recursos en resoluciones superiores a 900px.
-- **[ConfigView.tsx](file:///c:/Users/asdiqa/Desktop/asdiqa.kontrol/src/components/ConfigView.tsx)**:
-  - Reestructurado el layout de la pestaña de Recursos y Costes a través de la clase CSS `.config-grid-recursos` para otorgar más ancho a la tabla de recursos activos en pantallas de escritorio.
-  - Actualizados los placeholders de creación de tareas, brigadas y accesos a textos genéricos directos.
+  - El favicon cambia el color de su punto central según el semáforo global consolidado del periodo (Verde/Rojo/Azul).
 
 ---
 

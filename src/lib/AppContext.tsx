@@ -59,7 +59,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const savedTheme = localStorage.getItem('kontrol_theme') as 'light' | 'dark' | null;
-      const initialTheme = savedTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      const initialTheme = savedTheme || 'light';
       setTheme(initialTheme);
       document.documentElement.setAttribute('data-theme', initialTheme);
     }
