@@ -241,3 +241,23 @@ tr:hover td {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--text-tertiary);
 }
+
+/* Layout responsivo para Recursos y Costes en ConfigView */
+.config-grid-recursos {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (min-width: 900px) {
+  .config-grid-recursos {
+    grid-template-columns: 360px 1fr;
+  }
+}
+
+/* Invertir el color del icono de selector de calendario en modo oscuro */
+[data-theme="dark"] input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(1);
+  cursor: pointer;
+}

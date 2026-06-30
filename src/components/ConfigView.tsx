@@ -617,7 +617,7 @@ export default function ConfigView() {
             
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
               <div>
-                <label htmlFor="umb-verde">Umbral Verde (Mínimo % Cumplimiento):</label>
+                <label htmlFor="umb-verde">Umbral Verde (% mínimo):</label>
                 <input
                   type="number"
                   id="umb-verde"
@@ -629,7 +629,7 @@ export default function ConfigView() {
                 />
               </div>
               <div>
-                <label htmlFor="umb-azul">Umbral Azul (Sobresaliente % Cumplimiento):</label>
+                <label htmlFor="umb-azul">Umbral Azul (% sobresaliente):</label>
                 <input
                   type="number"
                   id="umb-azul"
@@ -690,7 +690,7 @@ export default function ConfigView() {
                     id="part-codigo"
                     value={partidaCodigo}
                     onChange={e => setPartidaCodigo(e.target.value)}
-                    placeholder={currentObra?.tipo === 'tarea' ? "Ej. T-01" : "Ej. 04.02.01.05"}
+                    placeholder={currentObra?.tipo === 'tarea' ? "Tarea 1" : "04.02.01.05"}
                     required
                     disabled={!!selectedPartida}
                   />
@@ -702,7 +702,7 @@ export default function ConfigView() {
                     id="part-desc"
                     value={partidaDesc}
                     onChange={e => setPartidaDesc(e.target.value)}
-                    placeholder={currentObra?.tipo === 'tarea' ? "Ej. Fusionado fibra..." : "Tendido en zanja..."}
+                    placeholder={currentObra?.tipo === 'tarea' ? "Fusionado fibra" : "Tendido en zanja"}
                     required
                   />
                 </div>
@@ -902,7 +902,7 @@ export default function ConfigView() {
                   id="brig-nombre"
                   value={brigadaNombre}
                   onChange={e => setBrigadaNombre(e.target.value)}
-                  placeholder="Ej. Cuadrilla 1, Equipo Pérez"
+                  placeholder="Brigada 1"
                   required
                 />
               </div>
@@ -1014,7 +1014,7 @@ export default function ConfigView() {
                   id="usr-nombre"
                   value={usuarioNombre}
                   onChange={e => setUsuarioNombre(e.target.value)}
-                  placeholder="Ej. Carlos Pérez"
+                  placeholder="Carlos Pérez"
                   required
                 />
               </div>
@@ -1025,7 +1025,7 @@ export default function ConfigView() {
                   id="usr-username"
                   value={usuarioUsername}
                   onChange={e => setUsuarioUsername(e.target.value)}
-                  placeholder="Ej. carlosperez"
+                  placeholder="carlosperez"
                   required
                 />
               </div>
@@ -1122,7 +1122,7 @@ export default function ConfigView() {
 
       {/* 5. TAB RECURSOS */}
       {activeTab === 'recursos' && currentObra?.tipo !== 'tarea' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '2rem', alignItems: 'start' }}>
+        <div className="config-grid-recursos">
           {/* Formulario */}
           <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
             <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>
@@ -1136,7 +1136,7 @@ export default function ConfigView() {
                   id="rec-nombre"
                   value={recursoNombre}
                   onChange={e => setRecursoNombre(e.target.value)}
-                  placeholder="Ej. Paco (Oficial), Miniexcavadora"
+                  placeholder="Trabajador 1"
                   required
                 />
               </div>
@@ -1246,8 +1246,8 @@ export default function ConfigView() {
                 <tr>
                   <th>Nombre</th>
                   <th>Tipo</th>
-                  <th>Coste Mensual</th>
-                  <th>Coste Diario (20d)</th>
+                  <th>Coste</th>
+                  <th>Diario</th>
                   <th>Brigada</th>
                   <th style={{ textAlign: 'right' }}>Acciones</th>
                 </tr>
@@ -1339,7 +1339,7 @@ export default function ConfigView() {
                     id="obra-nombre"
                     value={obraNombre}
                     onChange={e => setObraNombre(e.target.value)}
-                    placeholder="Ej. Obra Principal (Madrid)"
+                    placeholder="Obra CAF"
                     required
                   />
                 </div>
@@ -1361,7 +1361,7 @@ export default function ConfigView() {
                     id="obra-desc"
                     value={obraDesc}
                     onChange={e => setObraDesc(e.target.value)}
-                    placeholder="Ej. Canalización zona centro y acometidas"
+                    placeholder="Canalización zona centro"
                     style={{ width: '100%', minHeight: '60px', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
                   />
                 </div>

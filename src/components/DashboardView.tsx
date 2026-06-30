@@ -305,7 +305,11 @@ export default function DashboardView() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1>Cuadro de Mando de Producción</h1>
-          <p>Supervisa el rendimiento acumulado e ingresos vs gastos de todas las cuadrillas de la obra.</p>
+          <p>
+            {isTarea 
+              ? 'Supervisa el cumplimiento de objetivos y puntos conseguidos de todas las cuadrillas de la obra.' 
+              : 'Supervisa el rendimiento acumulado e ingresos vs gastos de todas las cuadrillas de la obra.'}
+          </p>
         </div>
         
         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -378,7 +382,10 @@ export default function DashboardView() {
             {isTarea ? 'Tareas Realizadas' : 'Volumen Ejecutado'}
           </span>
           <h2 style={{ fontSize: '1.8rem', margin: '0.25rem 0 0.5rem 0', fontWeight: 700 }}>
-            {totalMetros.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} {isTarea ? 'uds' : 'm'}
+            {isTarea 
+              ? totalMetros.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+              : `${totalMetros.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`
+            }
           </h2>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
             {isTarea ? 'Total tareas completadas' : 'Total metros registrados'}
@@ -403,10 +410,10 @@ export default function DashboardView() {
               Puntos Totales Conseguidos
             </span>
             <h2 style={{ fontSize: '1.8rem', margin: '0.25rem 0 0.5rem 0', fontWeight: 700, color: 'var(--status-blue)' }}>
-              {totalPuntosAchieved.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pts
+              {totalPuntosAchieved.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} pts
             </h2>
             <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-              Objetivo: {totalPuntosTarget.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} pts
+              Objetivo: {totalPuntosTarget.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} pts
             </span>
           </div>
         ) : (
@@ -493,7 +500,9 @@ export default function DashboardView() {
                   <td style={{ fontWeight: 600 }}>{item.brigadaNombre}</td>
                   <td>{item.jefeNombre}</td>
                   <td style={{ textAlign: 'center' }}>{item.numPartes}</td>
-                  <td style={{ textAlign: 'right' }}>{item.metrosAcumulados.toFixed(1)} {isTarea ? 'uds' : 'm'}</td>
+                  <td style={{ textAlign: 'right' }}>
+                    {isTarea ? item.metrosAcumulados.toFixed(0) : `${item.metrosAcumulados.toFixed(1)} m`}
+                  </td>
                   {!isTarea && <td style={{ textAlign: 'right' }}>{formattedRevenue}</td>}
                   {!isTarea && <td style={{ textAlign: 'right' }}>{formattedExpenses}</td>}
                   {!isTarea && <td style={{
@@ -501,7 +510,7 @@ export default function DashboardView() {
                     fontWeight: 600,
                     color: item.margin > 0 ? 'var(--status-green)' : item.margin < 0 ? 'var(--status-red)' : 'inherit'
                   }}>{formattedMargin}</td>}
-                  {isTarea && <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--status-blue)' }}>{pointsAchieved.toFixed(1)} pts</td>}
+                  {isTarea && <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--status-blue)' }}>{pointsAchieved.toFixed(0)} pts</td>}
                   <td style={{ textAlign: 'right', fontWeight: 600 }}>{roundedCompliance}%</td>
                   <td style={{ textAlign: 'center' }}>
                     <PerformanceTrafficLight

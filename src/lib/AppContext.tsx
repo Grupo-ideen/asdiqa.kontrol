@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { Usuario, Partida, Brigada, ParteTrabajo, Gasto, AppConfig, Recurso, Obra, UsuarioObra } from './types';
 import { Services } from './services';
 import { isSupabaseConfigured } from './supabase';
+import { calculateBrigadePeriodMetrics } from './calculations';
 
 interface AppContextProps {
   currentUser: Usuario | null;
@@ -29,6 +30,8 @@ interface AppContextProps {
   currentObra: Obra | null;
   setCurrentObra: (obra: Obra | null) => void;
   usuariosObras: UsuarioObra[];
+  theme: 'light' | 'dark';
+  toggleTheme: () => void;
 }
 
 const AppContext = createContext<AppContextProps | undefined>(undefined);
@@ -50,6 +53,26 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [obras, setObras] = useState<Obra[]>([]);
   const [currentObra, setCurrentObraState] = useState<Obra | null>(null);
   const [usuariosObras, setUsuariosObras] = useState<UsuarioObra[]>([]);
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  // Inicializar tema
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const savedTheme = localStorage.getItem('kontrol_theme') as 'light' | 'dark' | null;
+      const initialTheme = savedTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+      setTheme(initialTheme);
+      document.documentElement.setAttribute('data-theme', initialTheme);
+    }
+  }, []);
+
+  const toggleTheme = useCallback(() => {
+    const nextTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(nextTheme);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('kontrol_theme', nextTheme);
+      document.documentElement.setAttribute('data-theme', nextTheme);
+    }
+  }, [theme]);
 
   // Estados globales de navegación
   const [section, setSection] = useState('dashboard');
@@ -249,6 +272,95 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(timer);
   }, [refreshAll]);
 
+  // Actualizar favicon dinámicamente según el estado del proyecto activo en el mes actual
+  useEffect(() => {
+    function updateFavicon(status: 'rojo' | 'verde' | 'azul') {
+      if (typeof window === 'undefined') return;
+
+      let color = '#4cbd6d'; // verde por defecto
+      if (status === 'rojo') {
+        color = '#c53030';
+      } else if (status === 'azul') {
+        color = '#2b6cb0';
+      }
+
+      const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+        <rect width="32" height="32" rx="6" fill="#0a0a0a"/>
+        <circle cx="16" cy="16" r="9" fill="${color}"/>
+      </svg>`;
+
+      const links: NodeListOf<HTMLLinkElement> = document.querySelectorAll("link[rel*='icon']");
+      if (links.length > 0) {
+        links.forEach(l => {
+          l.href = `data:image/svg+xml;utf8,${encodeURIComponent(svgContent)}`;
+        });
+      } else {
+        const link = document.createElement('link');
+        link.rel = 'icon';
+        link.href = `data:image/svg+xml;utf8,${encodeURIComponent(svgContent)}`;
+        document.head.appendChild(link);
+      }
+    }
+
+    if (!currentObra || !config || brigadas.length === 0) {
+      updateFavicon('verde');
+      return;
+    }
+
+    try {
+      const d = new Date();
+      const fechaInicio = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+      const fechaFin = d.toISOString().split('T')[0];
+      const isTarea = currentObra.tipo === 'tarea';
+
+      const brigadeMetricsList = brigadas.map(b => {
+        return calculateBrigadePeriodMetrics(
+          b.id,
+          b.nombre,
+          b.jefe_nombre || 'Sin asignar',
+          partes,
+          gastos,
+          config,
+          recursos,
+          fechaInicio,
+          fechaFin,
+          currentObra.tipo
+        );
+      });
+
+      const totalRevenue = brigadeMetricsList.reduce((sum, item) => sum + item.revenue, 0);
+      const totalExpenses = brigadeMetricsList.reduce((sum, item) => sum + item.expenses, 0);
+      const totalMargin = totalRevenue - totalExpenses;
+      const avgCompliance = brigadeMetricsList.length > 0 
+        ? brigadeMetricsList.reduce((sum, item) => sum + item.averageCompliance, 0) / brigadeMetricsList.length 
+        : 0;
+
+      let status: 'rojo' | 'verde' | 'azul' = 'rojo';
+      if (isTarea) {
+        if (avgCompliance < config.umbral_verde) {
+          status = 'rojo';
+        } else if (avgCompliance >= config.umbral_verde && avgCompliance < config.umbral_azul) {
+          status = 'verde';
+        } else {
+          status = 'azul';
+        }
+      } else {
+        if (avgCompliance < config.umbral_verde || totalMargin <= config.margen_minimo) {
+          status = 'rojo';
+        } else if (avgCompliance >= config.umbral_verde && avgCompliance < config.umbral_azul) {
+          status = 'verde';
+        } else {
+          status = 'azul';
+        }
+      }
+
+      updateFavicon(status);
+    } catch (e) {
+      console.error('Error al calcular estado del proyecto para el favicon:', e);
+      updateFavicon('verde');
+    }
+  }, [currentObra, config, partes, gastos, recursos, brigadas]);
+
   return (
     <AppContext.Provider
       value={{
@@ -274,7 +386,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         obras,
         currentObra,
         setCurrentObra,
-        usuariosObras
+        usuariosObras,
+        theme,
+        toggleTheme
       }}
     >
       {children}

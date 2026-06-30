@@ -10,7 +10,7 @@ const outfit = Outfit({
 });
 
 export const metadata: Metadata = {
-  title: "asdiqa.kontrol — Rendimiento y Gastos de Obra",
+  title: "ASDIQA.KONTROL",
   description: "Aplicación de Control de Rendimiento de Brigadas y Gastos de Obra basado en partes de trabajo diarios.",
 };
 

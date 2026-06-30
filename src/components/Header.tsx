@@ -8,27 +8,7 @@ interface HeaderProps {
 }
 
 export default function Header({ currentSection, setSection }: HeaderProps) {
-  const { currentUser, setCurrentUser, isSupabase, obras, currentObra, setCurrentObra } = useApp();
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
-
-  // Cargar tema inicial
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('kontrol_theme') as 'light' | 'dark' | null;
-      const initialTheme = savedTheme || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
-      setTimeout(() => {
-        setTheme(initialTheme);
-      }, 0);
-      document.documentElement.setAttribute('data-theme', initialTheme);
-    }
-  }, []);
-
-  const toggleTheme = () => {
-    const nextTheme = theme === 'light' ? 'dark' : 'light';
-    setTheme(nextTheme);
-    localStorage.setItem('kontrol_theme', nextTheme);
-    document.documentElement.setAttribute('data-theme', nextTheme);
-  };
+  const { currentUser, setCurrentUser, isSupabase, obras, currentObra, setCurrentObra, theme, toggleTheme } = useApp();
 
   // Secciones disponibles según el rol
   const menuItems = [

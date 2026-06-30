@@ -12,7 +12,7 @@ import SimulatorView from '@/components/SimulatorView';
 import { Services } from '@/lib/services';
 
 export default function Home() {
-  const { currentUser, section, setSection, usuarios, setCurrentUser, obras, currentObra, setCurrentObra, refreshAll, initialLoaded } = useApp();
+  const { currentUser, section, setSection, usuarios, setCurrentUser, obras, currentObra, setCurrentObra, refreshAll, initialLoaded, theme, toggleTheme } = useApp();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
@@ -77,8 +77,48 @@ export default function Home() {
         justifyContent: 'center',
         minHeight: '100vh',
         backgroundColor: 'var(--bg-primary)',
-        padding: '1.5rem'
+        padding: '1.5rem',
+        position: 'relative'
       }}>
+        {/* Theme Toggle Button */}
+        <div style={{ position: 'absolute', top: '1.5rem', right: '1.5rem' }}>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
+            style={{
+              padding: '0.5rem',
+              width: '2.25rem',
+              height: '2.25rem',
+              borderRadius: '50%',
+              borderColor: 'var(--border-color)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'var(--bg-secondary)',
+              cursor: 'pointer'
+            }}
+          >
+            {theme === 'light' ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="5" />
+                <line x1="12" y1="1" x2="12" y2="3" />
+                <line x1="12" y1="21" x2="12" y2="23" />
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                <line x1="1" y1="12" x2="3" y2="12" />
+                <line x1="21" y1="12" x2="23" y2="12" />
+                <line x1="4.22" y1="19.22" x2="5.64" y2="17.78" />
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+              </svg>
+            )}
+          </button>
+        </div>
+
         <div style={{
           width: '100%',
           maxWidth: '400px',
@@ -162,11 +202,67 @@ export default function Home() {
         flexDirection: 'column',
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: '80vh',
+        minHeight: '100vh',
         backgroundColor: 'var(--bg-primary)',
         padding: '2rem',
-        textAlign: 'center'
+        textAlign: 'center',
+        position: 'relative'
       }}>
+        {/* Floating Controls (Theme Toggle and Logout) */}
+        <div style={{ position: 'absolute', top: '1.5rem', right: '1.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+          <button
+            type="button"
+            onClick={toggleTheme}
+            aria-label={theme === 'light' ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'}
+            style={{
+              padding: '0.5rem',
+              width: '2.25rem',
+              height: '2.25rem',
+              borderRadius: '50%',
+              borderColor: 'var(--border-color)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'var(--bg-secondary)',
+              cursor: 'pointer'
+            }}
+          >
+            {theme === 'light' ? (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+              </svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="12" cy="12" r="5" />
+                <line x1="12" y1="1" x2="12" y2="3" />
+                <line x1="12" y1="21" x2="12" y2="23" />
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                <line x1="1" y1="12" x2="3" y2="12" />
+                <line x1="21" y1="12" x2="23" y2="12" />
+                <line x1="4.22" y1="19.22" x2="5.64" y2="17.78" />
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+              </svg>
+            )}
+          </button>
+          
+          <button
+            type="button"
+            onClick={() => setCurrentUser(null)}
+            style={{
+              padding: '0.4rem 0.8rem',
+              fontSize: '0.8rem',
+              fontWeight: 500,
+              height: '2.25rem',
+              borderColor: 'var(--border-color)',
+              backgroundColor: 'var(--bg-secondary)',
+              cursor: 'pointer'
+            }}
+          >
+            Cerrar Sesión
+          </button>
+        </div>
+
         <div style={{
           width: '100%',
           maxWidth: '500px',

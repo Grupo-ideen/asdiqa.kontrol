@@ -279,7 +279,7 @@ export default function PartesView() {
                         <option value="">{currentObra?.tipo === 'tarea' ? 'Selecciona tarea...' : 'Selecciona partida de presupuesto...'}</option>
                         {partidas.map(p => (
                           <option key={p.id} value={p.id}>
-                            [{p.codigo}] {p.descripcion.substring(0, 50)}... ({currentObra?.tipo === 'tarea' ? `${p.puntos || p.precio_unitario} pts/` : (isAdmin ? `${p.precio_unitario}€/` : '')}{p.unidad})
+                            [{p.codigo}] {p.descripcion.substring(0, 50)}... ({currentObra?.tipo === 'tarea' ? `${Math.round(Number(p.puntos || p.precio_unitario))} pts` : `${isAdmin ? `${p.precio_unitario}€/${p.unidad}` : p.unidad}`})
                           </option>
                         ))}
                       </select>
@@ -290,7 +290,7 @@ export default function PartesView() {
                       <input
                         type="number"
                         id={`metros-${index}`}
-                        placeholder={currentObra?.tipo === 'tarea' ? "Ej. 5" : "Ej. 120"}
+                        placeholder={currentObra?.tipo === 'tarea' ? "5" : "120"}
                         value={linea.metros_ejecutados || ''}
                         onChange={e => handleLineaChange(index, 'metros_ejecutados', e.target.value)}
                         min="0.1"
@@ -298,9 +298,11 @@ export default function PartesView() {
                         required
                         style={{ flex: 1 }}
                       />
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                        {partidas.find(p => p.id === linea.partida_id)?.unidad || (currentObra?.tipo === 'tarea' ? 'ud' : 'm')}
-                      </span>
+                      {currentObra?.tipo !== 'tarea' && (
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                          {partidas.find(p => p.id === linea.partida_id)?.unidad || 'm'}
+                        </span>
+                      )}
                     </div>
 
                     {formLineas.length > 1 && (
@@ -335,7 +337,7 @@ export default function PartesView() {
                 rows={2}
                 value={formObservaciones}
                 onChange={e => setFormObservaciones(e.target.value)}
-                placeholder="Indica si hubo alguna incidencia..."
+                placeholder="Indica si hubo incidencias"
               />
             </div>
 
@@ -480,7 +482,7 @@ export default function PartesView() {
                       const totalPuntos = linea.metros_ejecutados * puntos;
                       return (
                         <li key={linea.id}>
-                          <code>{linea.partida_codigo}</code> — {linea.partida_descripcion}: <strong>{linea.metros_ejecutados} {linea.partida_unidad}</strong> ({puntos} pts/ud → <strong>{totalPuntos.toFixed(1)} pts</strong>)
+                          <code>{linea.partida_codigo}</code> — {linea.partida_descripcion}: <strong>{Math.round(linea.metros_ejecutados)}</strong> ({Math.round(puntos)} pts/ud → <strong>{Math.round(totalPuntos)} pts</strong>)
                         </li>
                       );
                     }
@@ -521,13 +523,13 @@ export default function PartesView() {
                     <div>
                       <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Puntos Totales Conseguidos</span>
                       <span style={{ fontWeight: 700, color: 'var(--status-blue)', fontSize: '1rem' }}>
-                        {((parte.lineas?.reduce((sum, l) => sum + l.metros_ejecutados * ((l as any).partida_puntos ?? 0), 0)) ?? 0).toFixed(1)} pts
+                        {((parte.lineas?.reduce((sum, l) => sum + l.metros_ejecutados * ((l as any).partida_puntos ?? 0), 0)) ?? 0).toFixed(0)} pts
                       </span>
                     </div>
                     <div>
                       <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Objetivo del Día</span>
                       <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '1rem' }}>
-                        {(parte.num_personas * (config?.puntos_objetivo_dia ?? 10)).toFixed(1)} pts
+                        {(parte.num_personas * (config?.puntos_objetivo_dia ?? 10)).toFixed(0)} pts
                       </span>
                     </div>
                     <div>
