@@ -408,7 +408,7 @@ export const Services = {
       try {
         const { data, error } = await supabase
           .from('config')
-          .upsert({ ...newConfig, obra_id: obraId })
+          .upsert({ ...newConfig, obra_id: obraId }, { onConflict: 'obra_id' })
           .select()
           .single();
         if (!error && data) return data as AppConfig;
