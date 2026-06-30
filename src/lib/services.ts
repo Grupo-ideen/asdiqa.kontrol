@@ -12,8 +12,8 @@ const SEED_USUARIOS: Usuario[] = [
 ];
 
 const SEED_OBRAS: Obra[] = [
-  { id: 'o-1', nombre: 'Obra Principal (Madrid)', descripcion: 'Proyecto de canalización en zona centro' },
-  { id: 'o-2', nombre: 'Obra Secundaria (Barcelona)', descripcion: 'Despliegue de red fibra óptica sector norte' }
+  { id: 'o-1', nombre: 'Obra Principal (Madrid)', descripcion: 'Proyecto de canalización en zona centro', tipo: 'metro' },
+  { id: 'o-2', nombre: 'Obra Secundaria (Barcelona)', descripcion: 'Despliegue de red fibra óptica sector norte', tipo: 'metro' }
 ];
 
 const SEED_USUARIOS_OBRAS: UsuarioObra[] = [
@@ -221,8 +221,13 @@ function getLocalDB(): DatabaseSchema {
     return defaultDB;
   }
   const parsed = JSON.parse(stored);
+  const rawObras = parsed.obras || SEED_OBRAS;
+  const sanitizedObras = rawObras.map((o: any) => ({
+    ...o,
+    tipo: o.tipo || 'metro'
+  }));
   return {
-    obras: parsed.obras || SEED_OBRAS,
+    obras: sanitizedObras,
     usuarios_obras: parsed.usuarios_obras || SEED_USUARIOS_OBRAS,
     usuarios: parsed.usuarios || SEED_USUARIOS,
     partidas: parsed.partidas || SEED_PARTIDAS,
@@ -266,6 +271,7 @@ export const Services = {
       try {
         const dbObra = {
           ...obra,
+          tipo: obra.tipo || 'metro',
           id: !obra.id || obra.id.startsWith('o-') ? undefined : obra.id
         };
         const { data, error } = await supabase.from('obras').upsert(dbObra).select().single();
@@ -278,6 +284,7 @@ export const Services = {
     const isNew = !obra.id || obra.id.startsWith('o-');
     const finalObra = {
       ...obra,
+      tipo: obra.tipo || 'metro',
       id: isNew ? `o-${Date.now()}` : obra.id
     };
     if (isNew) {
@@ -349,10 +356,31 @@ export const Services = {
   // CONFIGURACIÓN (Una por obra)
   // ==========================================
   async getConfig(obraId: string): Promise<AppConfig> {
+    let defaultPuntos = 10.00;
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: o } = await supabase.from('obras').select('tipo').eq('id', obraId).maybeSingle();
+        if (o?.tipo === 'tarea') {
+          defaultPuntos = 27.00;
+        }
+      } catch (e) {}
+    } else {
+      const o = getLocalDB().obras.find(x => x.id === obraId);
+      if (o?.tipo === 'tarea') {
+        defaultPuntos = 27.00;
+      }
+    }
+
     if (isSupabaseConfigured && supabase) {
       try {
         const { data, error } = await supabase.from('config').select('*').eq('obra_id', obraId).maybeSingle();
-        if (!error && data) return data as AppConfig;
+        if (!error && data) {
+          const config = data as AppConfig;
+          if (config.puntos_objetivo_dia === undefined) {
+            config.puntos_objetivo_dia = defaultPuntos;
+          }
+          return config;
+        }
         
         // Si no existe configuración para esta obra, creamos una por defecto
         const newConf = {
@@ -360,7 +388,8 @@ export const Services = {
           rendimiento_default: 100.00,
           umbral_verde: 100.00,
           umbral_azul: 110.00,
-          margen_minimo: 0.00
+          margen_minimo: 0.00,
+          puntos_objetivo_dia: defaultPuntos
         };
         const { data: created, error: err } = await supabase.from('config').insert(newConf).select().single();
         if (!err && created) return created as AppConfig;
@@ -377,20 +406,31 @@ export const Services = {
         rendimiento_default: 100.00,
         umbral_verde: 100.00,
         umbral_azul: 110.00,
-        margen_minimo: 0.00
+        margen_minimo: 0.00,
+        puntos_objetivo_dia: defaultPuntos
       };
       db.configs.push(conf);
+      saveLocalDB(db);
+    } else if (conf.puntos_objetivo_dia === undefined) {
+      conf.puntos_objetivo_dia = defaultPuntos;
       saveLocalDB(db);
     }
     return conf;
   },
 
   async updateConfig(obraId: string, newConfig: Partial<AppConfig>): Promise<AppConfig> {
+    let defaultPuntos = 10.00;
+    const db = getLocalDB();
+    const o = db.obras.find(x => x.id === obraId);
+    if (o?.tipo === 'tarea') {
+      defaultPuntos = 27.00;
+    }
+
     if (isSupabaseConfigured && supabase) {
       try {
         const { data, error } = await supabase
           .from('config')
-          .upsert({ ...newConfig, obra_id: obraId })
+          .upsert({ ...newConfig, obra_id: obraId }, { onConflict: 'obra_id' })
           .select()
           .single();
         if (!error && data) return data as AppConfig;
@@ -398,7 +438,6 @@ export const Services = {
         console.error('Error al actualizar config de la obra en Supabase, usando local:', e);
       }
     }
-    const db = getLocalDB();
     const idx = db.configs.findIndex(c => c.obra_id === obraId);
     if (idx < 0) {
       const newC = {
@@ -408,13 +447,14 @@ export const Services = {
         umbral_verde: 100.00,
         umbral_azul: 110.00,
         margen_minimo: 0.00,
+        puntos_objetivo_dia: defaultPuntos,
         ...newConfig
       } as AppConfig;
       db.configs.push(newC);
       saveLocalDB(db);
       return newC;
     }
-    const conf = { ...db.configs[idx], ...newConfig } as AppConfig;
+    const conf = { puntos_objetivo_dia: defaultPuntos, ...db.configs[idx], ...newConfig } as AppConfig;
     db.configs[idx] = conf;
     saveLocalDB(db);
     return conf;
@@ -687,7 +727,7 @@ export const Services = {
             creado_por_user:usuarios(nombre),
             partes_lineas(
               *,
-              partida:partidas(codigo, descripcion, unidad, precio_unitario, rendimiento_objetivo)
+              partida:partidas(codigo, descripcion, unidad, precio_unitario, rendimiento_objetivo, puntos)
             )
           `)
           .eq('obra_id', obraId)
@@ -715,7 +755,8 @@ export const Services = {
               partida_descripcion: pl.partida?.descripcion || '',
               partida_unidad: pl.partida?.unidad || 'm',
               partida_precio_unitario: Number(pl.partida?.precio_unitario || 0),
-              partida_rendimiento_objetivo: Number(pl.partida?.rendimiento_objetivo || 100)
+              partida_rendimiento_objetivo: Number(pl.partida?.rendimiento_objetivo || 100),
+              partida_puntos: Number(pl.partida?.puntos || 0)
             })) || []
           })) as ParteTrabajo[];
         }
@@ -738,7 +779,8 @@ export const Services = {
             partida_descripcion: partida?.descripcion || '',
             partida_unidad: partida?.unidad || 'm',
             partida_precio_unitario: partida?.precio_unitario || 0,
-            partida_rendimiento_objetivo: partida?.rendimiento_objetivo || 100
+            partida_rendimiento_objetivo: partida?.rendimiento_objetivo || 100,
+            partida_puntos: partida?.puntos || 0
           };
         });
 

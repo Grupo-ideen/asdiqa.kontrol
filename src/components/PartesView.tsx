@@ -250,7 +250,7 @@ export default function PartesView() {
             {/* Líneas de ejecución (Partidas y Metros) */}
             <div>
               <h3 style={{ fontSize: '0.95rem', fontWeight: 600, marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Líneas de Producción (Metros o unidades ejecutadas)
+                {currentObra?.tipo === 'tarea' ? 'Líneas de Trabajo (Tareas y Cantidades realizadas)' : 'Líneas de Producción (Metros o unidades ejecutadas)'}
               </h3>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -276,10 +276,10 @@ export default function PartesView() {
                         onChange={e => handleLineaChange(index, 'partida_id', e.target.value)}
                         required
                       >
-                        <option value="">Selecciona partida de presupuesto...</option>
+                        <option value="">{currentObra?.tipo === 'tarea' ? 'Selecciona tarea...' : 'Selecciona partida de presupuesto...'}</option>
                         {partidas.map(p => (
                           <option key={p.id} value={p.id}>
-                            [{p.codigo}] {p.descripcion.substring(0, 50)}... ({isAdmin ? `${p.precio_unitario}€/` : ''}{p.unidad})
+                            [{p.codigo}] {p.descripcion.substring(0, 50)}... ({currentObra?.tipo === 'tarea' ? `${p.puntos || p.precio_unitario} pts/` : (isAdmin ? `${p.precio_unitario}€/` : '')}{p.unidad})
                           </option>
                         ))}
                       </select>
@@ -290,7 +290,7 @@ export default function PartesView() {
                       <input
                         type="number"
                         id={`metros-${index}`}
-                        placeholder="Ej. 120"
+                        placeholder={currentObra?.tipo === 'tarea' ? "Ej. 5" : "Ej. 120"}
                         value={linea.metros_ejecutados || ''}
                         onChange={e => handleLineaChange(index, 'metros_ejecutados', e.target.value)}
                         min="0.1"
@@ -299,7 +299,7 @@ export default function PartesView() {
                         style={{ flex: 1 }}
                       />
                       <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                        {partidas.find(p => p.id === linea.partida_id)?.unidad || 'm'}
+                        {partidas.find(p => p.id === linea.partida_id)?.unidad || (currentObra?.tipo === 'tarea' ? 'ud' : 'm')}
                       </span>
                     </div>
 
@@ -323,7 +323,7 @@ export default function PartesView() {
                 onClick={handleAddLinea}
                 style={{ marginTop: '0.75rem', fontSize: '0.8rem', padding: '0.4rem 0.8rem' }}
               >
-                + Añadir Partida Trabajada
+                {currentObra?.tipo === 'tarea' ? '+ Añadir Tarea Realizada' : '+ Añadir Partida Trabajada'}
               </button>
             </div>
 
@@ -428,7 +428,7 @@ export default function PartesView() {
         
         {filteredPartes.map(parte => {
           // Calcular rendimiento y semáforo en tiempo real para este parte diario
-          const metrics = config ? calculateParteMetrics(parte, gastos, config, recursos) : null;
+          const metrics = config ? calculateParteMetrics(parte, gastos, config, recursos, currentObra?.tipo) : null;
           
           return (
             <div
@@ -457,22 +457,33 @@ export default function PartesView() {
                 </div>
                 
                 {metrics && !isJefeEquipo && (
-                  <PerformanceTrafficLight
-                    status={metrics.status}
-                    compliance={metrics.compliancePct}
-                    margin={metrics.margin}
-                    compact={true}
-                  />
-                )}
+                   <PerformanceTrafficLight
+                     status={metrics.status}
+                     compliance={metrics.compliancePct}
+                     margin={currentObra?.tipo === 'tarea' ? 1 : metrics.margin}
+                     compact={true}
+                     isTarea={currentObra?.tipo === 'tarea'}
+                   />
+                 )}
               </div>
 
               {/* Detalle de partidas */}
               <div style={{ fontSize: '0.85rem', borderLeft: '2px solid var(--border-color)', paddingLeft: '0.75rem' }}>
                 <span style={{ display: 'block', fontWeight: 600, marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>
-                  Producción Registrada:
+                  {currentObra?.tipo === 'tarea' ? 'Tareas Realizadas:' : 'Producción Registrada:'}
                 </span>
                 <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
                   {parte.lineas?.map(linea => {
+                    const isTarea = currentObra?.tipo === 'tarea';
+                    if (isTarea) {
+                      const puntos = (linea as any).partida_puntos ?? 0;
+                      const totalPuntos = linea.metros_ejecutados * puntos;
+                      return (
+                        <li key={linea.id}>
+                          <code>{linea.partida_codigo}</code> — {linea.partida_descripcion}: <strong>{linea.metros_ejecutados} {linea.partida_unidad}</strong> ({puntos} pts/ud → <strong>{totalPuntos.toFixed(1)} pts</strong>)
+                        </li>
+                      );
+                    }
                     const lineRendObj = linea.partida_rendimiento_objetivo ?? config?.rendimiento_default ?? 100;
                     const lineTotalObj = parte.num_personas * lineRendObj;
                     const pct = lineTotalObj > 0 ? (linea.metros_ejecutados / lineTotalObj) * 100 : 0;
@@ -491,46 +502,82 @@ export default function PartesView() {
               </div>
 
               {/* Resumen económico diario del Parte */}
-              {metrics && !isJefeEquipo && (
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
-                    gap: '1rem',
-                    backgroundColor: 'var(--bg-secondary)',
-                    padding: '0.75rem 1rem',
-                    borderRadius: 'var(--border-radius)',
-                    fontSize: '0.85rem',
-                    border: '1px solid var(--border-color)',
-                    marginTop: '0.25rem',
-                    marginBottom: '0.25rem'
-                  }}
-                >
-                  <div>
-                    <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Ingresos Gen.</span>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.revenue)}
-                    </span>
+               {metrics && !isJefeEquipo && (
+                currentObra?.tipo === 'tarea' ? (
+                  <div
+                    style={{
+                      display: 'flex',
+                      gap: '2rem',
+                      backgroundColor: 'var(--bg-secondary)',
+                      padding: '0.75rem 1rem',
+                      borderRadius: 'var(--border-radius)',
+                      fontSize: '0.85rem',
+                      border: '1px solid var(--border-color)',
+                      marginTop: '0.25rem',
+                      marginBottom: '0.25rem',
+                      flexWrap: 'wrap'
+                    }}
+                  >
+                    <div>
+                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Puntos Totales Conseguidos</span>
+                      <span style={{ fontWeight: 700, color: 'var(--status-blue)', fontSize: '1rem' }}>
+                        {((parte.lineas?.reduce((sum, l) => sum + l.metros_ejecutados * ((l as any).partida_puntos ?? 0), 0)) ?? 0).toFixed(1)} pts
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Objetivo del Día</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '1rem' }}>
+                        {(parte.num_personas * (config?.puntos_objetivo_dia ?? 10)).toFixed(1)} pts
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>% Cumplimiento</span>
+                      <span style={{ fontWeight: 700, color: metrics.status === 'rojo' ? 'var(--status-red)' : metrics.status === 'verde' ? 'var(--status-green)' : 'var(--status-blue)', fontSize: '1.05rem' }}>
+                        {metrics.compliancePct.toFixed(1)}%
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Gastos Real.</span>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.expenses)}
-                    </span>
+                ) : (
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+                      gap: '1rem',
+                      backgroundColor: 'var(--bg-secondary)',
+                      padding: '0.75rem 1rem',
+                      borderRadius: 'var(--border-radius)',
+                      fontSize: '0.85rem',
+                      border: '1px solid var(--border-color)',
+                      marginTop: '0.25rem',
+                      marginBottom: '0.25rem'
+                    }}
+                  >
+                    <div>
+                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Ingresos Gen.</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.revenue)}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Gastos Real.</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.expenses)}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Margen Neto</span>
+                      <span style={{ fontWeight: 600, color: metrics.margin >= 0 ? '#4cbd6d' : 'var(--status-red)' }}>
+                        {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.margin)}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Cumplimiento</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {metrics.compliancePct.toFixed(1)}%
+                      </span>
+                    </div>
                   </div>
-                  <div>
-                    <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Margen Neto</span>
-                    <span style={{ fontWeight: 600, color: metrics.margin >= 0 ? '#4cbd6d' : 'var(--status-red)' }}>
-                      {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.margin)}
-                    </span>
-                  </div>
-                  <div>
-                    <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Cumplimiento</span>
-                    <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {metrics.compliancePct.toFixed(1)}%
-                    </span>
-                  </div>
-                </div>
+                )
               )}
 
               {/* Observaciones y Auditoría */}

@@ -6,6 +6,7 @@ export interface Obra {
   id: string;
   nombre: string;
   descripcion?: string;
+  tipo?: 'metro' | 'tarea';
   creado_en?: string;
 }
 
@@ -31,6 +32,7 @@ export interface Partida {
   precio_unitario: number;
   medicion_contrato: number;
   rendimiento_objetivo: number; // m/persona/dia
+  puntos?: number;
   obra_id: string;
   creado_en?: string;
 }
@@ -73,6 +75,7 @@ export interface ParteLinea {
   partida_unidad?: string;
   partida_precio_unitario?: number;
   partida_rendimiento_objetivo?: number;
+  partida_puntos?: number;
 }
 
 export interface Gasto {
@@ -101,6 +104,7 @@ export interface AppConfig {
   umbral_verde: number; // % cumplimiento (ej: 100)
   umbral_azul: number; // % cumplimiento (ej: 110)
   margen_minimo: number; // euros (ej: 0)
+  puntos_objetivo_dia?: number;
 }
 
 export interface Recurso {
