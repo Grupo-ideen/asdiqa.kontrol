@@ -283,8 +283,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         color = '#2b6cb0';
       }
 
+      const bgColor = theme === 'light' ? '#f9f9f9' : '#141414';
+
       const svgContent = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-        <rect width="32" height="32" rx="6" fill="#0a0a0a"/>
+        <rect width="32" height="32" rx="6" fill="${bgColor}"/>
         <circle cx="16" cy="16" r="9" fill="${color}"/>
       </svg>`;
 
@@ -358,7 +360,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       console.error('Error al calcular estado del proyecto para el favicon:', e);
       updateFavicon('verde');
     }
-  }, [currentObra, config, partes, gastos, recursos, brigadas]);
+  }, [currentObra, config, partes, gastos, recursos, brigadas, theme]);
 
   return (
     <AppContext.Provider
