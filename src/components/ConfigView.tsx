@@ -13,11 +13,11 @@ export default function ConfigView() {
   const [activeTab, setActiveTab] = useState<'umbrales' | 'partidas' | 'brigadas' | 'usuarios' | 'recursos' | 'obras'>('umbrales');
 
   // Estado para umbrales
-  const [rendDefault, setRendDefault] = useState(config?.rendimiento_default || 100);
-  const [umbVerde, setUmbVerde] = useState(config?.umbral_verde || 100);
-  const [umbAzul, setUmbAzul] = useState(config?.umbral_azul || 110);
-  const [margenMin, setMargenMin] = useState(config?.margen_minimo || 0);
-  const [puntosObjetivoDia, setPuntosObjetivoDia] = useState(config?.puntos_objetivo_dia && config.puntos_objetivo_dia !== 10 ? config.puntos_objetivo_dia : (currentObra?.tipo === 'tarea' ? 27 : 10));
+  const [rendDefault, setRendDefault] = useState<string | number>(config?.rendimiento_default || 100);
+  const [umbVerde, setUmbVerde] = useState<string | number>(config?.umbral_verde || 100);
+  const [umbAzul, setUmbAzul] = useState<string | number>(config?.umbral_azul || 110);
+  const [margenMin, setMargenMin] = useState<string | number>(config?.margen_minimo || 0);
+  const [puntosObjetivoDia, setPuntosObjetivoDia] = useState<string | number>(config?.puntos_objetivo_dia && config.puntos_objetivo_dia !== 10 ? config.puntos_objetivo_dia : (currentObra?.tipo === 'tarea' ? 27 : 10));
   const [configSaving, setConfigSaving] = useState(false);
   const [configMsg, setConfigMsg] = useState('');
 
@@ -26,9 +26,9 @@ export default function ConfigView() {
   const [partidaCodigo, setPartidaCodigo] = useState('');
   const [partidaDesc, setPartidaDesc] = useState('');
   const [partidaUnidad, setPartidaUnidad] = useState(currentObra?.tipo === 'tarea' ? 'ud' : 'm');
-  const [partidaPrecio, setPartidaPrecio] = useState(0);
-  const [partidaMedicion, setPartidaMedicion] = useState(0);
-  const [partidaRend, setPartidaRend] = useState(100);
+  const [partidaPrecio, setPartidaPrecio] = useState<string | number>('');
+  const [partidaMedicion, setPartidaMedicion] = useState<string | number>('');
+  const [partidaRend, setPartidaRend] = useState<string | number>('100');
   const [csvError, setCsvError] = useState('');
   const [csvSuccess, setCsvSuccess] = useState('');
 
@@ -290,13 +290,17 @@ export default function ConfigView() {
     e.preventDefault();
     setConfigSaving(true);
     setConfigMsg('');
+    const parseNum = (val: string | number) => {
+      const clean = val.toString().trim().replace(',', '.');
+      return Number(clean) || 0;
+    };
     try {
       await Services.updateConfig(currentObra?.id || '', {
-        rendimiento_default: Number(rendDefault),
-        umbral_verde: Number(umbVerde),
-        umbral_azul: Number(umbAzul),
-        margen_minimo: Number(margenMin),
-        puntos_objetivo_dia: Number(puntosObjetivoDia)
+        rendimiento_default: parseNum(rendDefault),
+        umbral_verde: parseNum(umbVerde),
+        umbral_azul: parseNum(umbAzul),
+        margen_minimo: parseNum(margenMin),
+        puntos_objetivo_dia: parseNum(puntosObjetivoDia)
       });
       setConfigMsg('Configuración guardada correctamente.');
       await refreshAll();
@@ -313,16 +317,21 @@ export default function ConfigView() {
     e.preventDefault();
     if (!partidaCodigo || !partidaDesc || !partidaUnidad) return;
 
+    const parseNum = (val: string | number) => {
+      const clean = val.toString().trim().replace(',', '.');
+      return Number(clean) || 0;
+    };
+
     try {
       const pData: Partida = {
         id: selectedPartida?.id || generateUniqueId('p'),
         codigo: partidaCodigo,
         descripcion: partidaDesc,
         unidad: partidaUnidad,
-        precio_unitario: currentObra?.tipo === 'tarea' ? 0 : Number(partidaPrecio),
-        medicion_contrato: currentObra?.tipo === 'tarea' ? 0 : Number(partidaMedicion),
-        rendimiento_objetivo: currentObra?.tipo === 'tarea' ? 0 : Number(partidaRend),
-        puntos: currentObra?.tipo === 'tarea' ? Number(partidaPrecio) : 0,
+        precio_unitario: currentObra?.tipo === 'tarea' ? 0 : parseNum(partidaPrecio),
+        medicion_contrato: currentObra?.tipo === 'tarea' ? 0 : parseNum(partidaMedicion),
+        rendimiento_objetivo: currentObra?.tipo === 'tarea' ? 0 : parseNum(partidaRend),
+        puntos: currentObra?.tipo === 'tarea' ? parseNum(partidaPrecio) : 0,
         obra_id: currentObra?.id || ''
       };
 
@@ -366,9 +375,9 @@ export default function ConfigView() {
     setPartidaCodigo('');
     setPartidaDesc('');
     setPartidaUnidad(currentObra?.tipo === 'tarea' ? 'ud' : 'm');
-    setPartidaPrecio(0);
-    setPartidaMedicion(0);
-    setPartidaRend(100);
+    setPartidaPrecio('');
+    setPartidaMedicion('');
+    setPartidaRend('100');
   };
 
   // Importar CSV
@@ -592,12 +601,15 @@ export default function ConfigView() {
               <div>
                 <label htmlFor="puntos-objetivo">Puntos objetivo por persona/día:</label>
                 <input
-                  type="number"
+                  type="text"
                   id="puntos-objetivo"
                   value={puntosObjetivoDia}
-                  onChange={e => setPuntosObjetivoDia(Number(e.target.value))}
-                  min="0.5"
-                  step="0.5"
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (val === '' || /^\d*([.,]\d*)?$/.test(val)) {
+                      setPuntosObjetivoDia(val);
+                    }
+                  }}
                   required
                 />
               </div>
@@ -605,11 +617,15 @@ export default function ConfigView() {
               <div>
                 <label htmlFor="rend-default">Rendimiento objetivo por defecto (m/persona/día):</label>
                 <input
-                  type="number"
+                  type="text"
                   id="rend-default"
                   value={rendDefault}
-                  onChange={e => setRendDefault(Number(e.target.value))}
-                  min="1"
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (val === '' || /^\d*([.,]\d*)?$/.test(val)) {
+                      setRendDefault(val);
+                    }
+                  }}
                   required
                 />
               </div>
@@ -619,24 +635,30 @@ export default function ConfigView() {
               <div>
                 <label htmlFor="umb-verde">Umbral Verde (Mínimo % Cumplimiento):</label>
                 <input
-                  type="number"
+                  type="text"
                   id="umb-verde"
                   value={umbVerde}
-                  onChange={e => setUmbVerde(Number(e.target.value))}
-                  min="50"
-                  max="200"
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (val === '' || /^\d*([.,]\d*)?$/.test(val)) {
+                      setUmbVerde(val);
+                    }
+                  }}
                   required
                 />
               </div>
               <div>
                 <label htmlFor="umb-azul">Umbral Azul (Sobresaliente % Cumplimiento):</label>
                 <input
-                  type="number"
+                  type="text"
                   id="umb-azul"
                   value={umbAzul}
-                  onChange={e => setUmbAzul(Number(e.target.value))}
-                  min="50"
-                  max="200"
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (val === '' || /^\d*([.,]\d*)?$/.test(val)) {
+                      setUmbAzul(val);
+                    }
+                  }}
                   required
                 />
               </div>
@@ -646,10 +668,15 @@ export default function ConfigView() {
               <div>
                 <label htmlFor="margen-min">Margen mínimo aceptable para Verde/Azul (€):</label>
                 <input
-                  type="number"
+                  type="text"
                   id="margen-min"
                   value={margenMin}
-                  onChange={e => setMargenMin(Number(e.target.value))}
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (val === '' || /^-?\d*([.,]\d*)?$/.test(val)) {
+                      setMargenMin(val);
+                    }
+                  }}
                   required
                 />
                 <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
@@ -721,12 +748,15 @@ export default function ConfigView() {
                   <div>
                     <label htmlFor="part-precio">{currentObra?.tipo === 'tarea' ? 'Puntos Otorgados:' : 'Precio Unitario (€):'}</label>
                     <input
-                      type="number"
+                      type="text"
                       id="part-precio"
                       value={partidaPrecio}
-                      onChange={e => setPartidaPrecio(Number(e.target.value))}
-                      step={currentObra?.tipo === 'tarea' ? "0.1" : "0.01"}
-                      min="0"
+                      onChange={e => {
+                        const val = e.target.value;
+                        if (val === '' || /^\d*([.,]\d*)?$/.test(val)) {
+                          setPartidaPrecio(val);
+                        }
+                      }}
                       required
                     />
                   </div>
@@ -736,23 +766,30 @@ export default function ConfigView() {
                     <div>
                       <label htmlFor="part-medicion">Medición Contrato:</label>
                       <input
-                        type="number"
+                        type="text"
                         id="part-medicion"
                         value={partidaMedicion}
-                        onChange={e => setPartidaMedicion(Number(e.target.value))}
-                        min="0"
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (val === '' || /^\d*([.,]\d*)?$/.test(val)) {
+                            setPartidaMedicion(val);
+                          }
+                        }}
                         required
                       />
                     </div>
                     <div>
                       <label htmlFor="part-rend">Objetivo (unidad/persona/día):</label>
                       <input
-                        type="number"
+                        type="text"
                         id="part-rend"
                         value={partidaRend}
-                        onChange={e => setPartidaRend(Number(e.target.value))}
-                        min="0.1"
-                        step="0.1"
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (val === '' || /^\d*([.,]\d*)?$/.test(val)) {
+                            setPartidaRend(val);
+                          }
+                        }}
                         required
                       />
                     </div>

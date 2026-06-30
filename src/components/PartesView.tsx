@@ -32,7 +32,7 @@ export default function PartesView() {
   
   const [formFecha, setFormFecha] = useState(new Date().toISOString().split('T')[0]);
   const [formBrigadaId, setFormBrigadaId] = useState('');
-  const [formNumPersonas, setFormNumPersonas] = useState(1);
+  const [formNumPersonas, setFormNumPersonas] = useState<string | number>(1);
   const [formObservaciones, setFormObservaciones] = useState('');
   const [formLineas, setFormLineas] = useState<Omit<ParteLinea, 'id' | 'parte_id'>[]>([
     { partida_id: '', metros_ejecutados: 0 }
@@ -68,12 +68,13 @@ export default function PartesView() {
     }
   };
 
-  const handleLineaChange = (index: number, field: 'partida_id' | 'metros_ejecutados', value: string | number) => {
+  const handleLineaChange = (index: number, field: 'partida_id' | 'metros_ejecutados', value: string) => {
     const updated = [...formLineas];
     if (field === 'metros_ejecutados') {
-      updated[index].metros_ejecutados = Number(value) || 0;
+      (updated[index] as any).metros_ejecutados_input = value;
+      updated[index].metros_ejecutados = Number(value.replace(',', '.')) || 0;
     } else {
-      updated[index].partida_id = value as string;
+      updated[index].partida_id = value;
     }
     setFormLineas(updated);
   };
@@ -132,7 +133,7 @@ export default function PartesView() {
         id: editingParte?.id || `pt-temp`,
         fecha: formFecha,
         brigada_id: formBrigadaId,
-        num_personas: Number(formNumPersonas),
+        num_personas: Number(formNumPersonas) || 1,
         creado_por: currentUser?.id || null,
         observaciones: formObservaciones,
         obra_id: currentObra?.id || ''
@@ -237,11 +238,15 @@ export default function PartesView() {
               <div>
                 <label htmlFor="form-personas">Operarios ese día:</label>
                 <input
-                  type="number"
+                  type="text"
                   id="form-personas"
                   value={formNumPersonas}
-                  onChange={e => setFormNumPersonas(Number(e.target.value))}
-                  min="1"
+                  onChange={e => {
+                    const val = e.target.value;
+                    if (val === '' || /^\d*$/.test(val)) {
+                      setFormNumPersonas(val);
+                    }
+                  }}
                   required
                 />
               </div>
@@ -288,13 +293,16 @@ export default function PartesView() {
                     <div style={{ flex: '1', minWidth: '100px', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                       <label htmlFor={`metros-${index}`} style={{ display: 'none' }}>Cantidad ejecutada</label>
                       <input
-                        type="number"
+                        type="text"
                         id={`metros-${index}`}
                         placeholder={currentObra?.tipo === 'tarea' ? "Ej. 5" : "Ej. 120"}
-                        value={linea.metros_ejecutados || ''}
-                        onChange={e => handleLineaChange(index, 'metros_ejecutados', e.target.value)}
-                        min="0.1"
-                        step="0.1"
+                        value={(linea as any).metros_ejecutados_input !== undefined ? (linea as any).metros_ejecutados_input : (linea.metros_ejecutados || '')}
+                        onChange={e => {
+                          const val = e.target.value;
+                          if (val === '' || /^\d*([.,]\d*)?$/.test(val)) {
+                            handleLineaChange(index, 'metros_ejecutados', val);
+                          }
+                        }}
                         required
                         style={{ flex: 1 }}
                       />
