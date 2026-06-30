@@ -17,7 +17,7 @@ export default function ConfigView() {
   const [umbVerde, setUmbVerde] = useState(config?.umbral_verde || 100);
   const [umbAzul, setUmbAzul] = useState(config?.umbral_azul || 110);
   const [margenMin, setMargenMin] = useState(config?.margen_minimo || 0);
-  const [puntosObjetivoDia, setPuntosObjetivoDia] = useState(config?.puntos_objetivo_dia || 10);
+  const [puntosObjetivoDia, setPuntosObjetivoDia] = useState(config?.puntos_objetivo_dia && config.puntos_objetivo_dia !== 10 ? config.puntos_objetivo_dia : (currentObra?.tipo === 'tarea' ? 27 : 10));
   const [configSaving, setConfigSaving] = useState(false);
   const [configMsg, setConfigMsg] = useState('');
 
@@ -39,7 +39,9 @@ export default function ConfigView() {
       setUmbVerde(config.umbral_verde || 100);
       setUmbAzul(config.umbral_azul || 110);
       setMargenMin(config.margen_minimo || 0);
-      setPuntosObjetivoDia(config.puntos_objetivo_dia || 10);
+      setPuntosObjetivoDia(config.puntos_objetivo_dia && config.puntos_objetivo_dia !== 10 ? config.puntos_objetivo_dia : (currentObra?.tipo === 'tarea' ? 27 : 10));
+    } else {
+      setPuntosObjetivoDia(currentObra?.tipo === 'tarea' ? 27 : 10);
     }
     if (!selectedPartida) {
       setPartidaUnidad(currentObra?.tipo === 'tarea' ? 'ud' : 'm');

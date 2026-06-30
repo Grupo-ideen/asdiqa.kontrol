@@ -104,7 +104,7 @@ CREATE TABLE IF NOT EXISTS config (
     umbral_verde NUMERIC(5, 2) NOT NULL DEFAULT 100.00, -- porcentaje mínimo de rendimiento (ej: 100%)
     umbral_azul NUMERIC(5, 2) NOT NULL DEFAULT 110.00, -- porcentaje para superación (ej: 110%)
     margen_minimo NUMERIC(12, 2) NOT NULL DEFAULT 0.00, -- margen en euros
-    puntos_objetivo_dia NUMERIC(12, 2) NOT NULL DEFAULT 10.00
+    puntos_objetivo_dia NUMERIC(12, 2) NOT NULL DEFAULT 27.00
 );
 
 -- Crear índices para optimizar búsquedas frecuentes

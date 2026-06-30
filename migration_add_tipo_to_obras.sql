@@ -11,4 +11,4 @@ ADD COLUMN IF NOT EXISTS puntos NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
 
 -- 3. Agregar columna 'puntos_objetivo_dia' a la tabla 'config'
 ALTER TABLE config 
-ADD COLUMN IF NOT EXISTS puntos_objetivo_dia NUMERIC(12, 2) NOT NULL DEFAULT 10.00;
+ADD COLUMN IF NOT EXISTS puntos_objetivo_dia NUMERIC(12, 2) NOT NULL DEFAULT 27.00;

@@ -356,13 +356,28 @@ export const Services = {
   // CONFIGURACIÓN (Una por obra)
   // ==========================================
   async getConfig(obraId: string): Promise<AppConfig> {
+    let defaultPuntos = 10.00;
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: o } = await supabase.from('obras').select('tipo').eq('id', obraId).maybeSingle();
+        if (o?.tipo === 'tarea') {
+          defaultPuntos = 27.00;
+        }
+      } catch (e) {}
+    } else {
+      const o = getLocalDB().obras.find(x => x.id === obraId);
+      if (o?.tipo === 'tarea') {
+        defaultPuntos = 27.00;
+      }
+    }
+
     if (isSupabaseConfigured && supabase) {
       try {
         const { data, error } = await supabase.from('config').select('*').eq('obra_id', obraId).maybeSingle();
         if (!error && data) {
           const config = data as AppConfig;
           if (config.puntos_objetivo_dia === undefined) {
-            config.puntos_objetivo_dia = 10.00;
+            config.puntos_objetivo_dia = defaultPuntos;
           }
           return config;
         }
@@ -374,7 +389,7 @@ export const Services = {
           umbral_verde: 100.00,
           umbral_azul: 110.00,
           margen_minimo: 0.00,
-          puntos_objetivo_dia: 10.00
+          puntos_objetivo_dia: defaultPuntos
         };
         const { data: created, error: err } = await supabase.from('config').insert(newConf).select().single();
         if (!err && created) return created as AppConfig;
@@ -392,18 +407,25 @@ export const Services = {
         umbral_verde: 100.00,
         umbral_azul: 110.00,
         margen_minimo: 0.00,
-        puntos_objetivo_dia: 10.00
+        puntos_objetivo_dia: defaultPuntos
       };
       db.configs.push(conf);
       saveLocalDB(db);
     } else if (conf.puntos_objetivo_dia === undefined) {
-      conf.puntos_objetivo_dia = 10.00;
+      conf.puntos_objetivo_dia = defaultPuntos;
       saveLocalDB(db);
     }
     return conf;
   },
 
   async updateConfig(obraId: string, newConfig: Partial<AppConfig>): Promise<AppConfig> {
+    let defaultPuntos = 10.00;
+    const db = getLocalDB();
+    const o = db.obras.find(x => x.id === obraId);
+    if (o?.tipo === 'tarea') {
+      defaultPuntos = 27.00;
+    }
+
     if (isSupabaseConfigured && supabase) {
       try {
         const { data, error } = await supabase
@@ -416,7 +438,6 @@ export const Services = {
         console.error('Error al actualizar config de la obra en Supabase, usando local:', e);
       }
     }
-    const db = getLocalDB();
     const idx = db.configs.findIndex(c => c.obra_id === obraId);
     if (idx < 0) {
       const newC = {
@@ -426,14 +447,14 @@ export const Services = {
         umbral_verde: 100.00,
         umbral_azul: 110.00,
         margen_minimo: 0.00,
-        puntos_objetivo_dia: 10.00,
+        puntos_objetivo_dia: defaultPuntos,
         ...newConfig
       } as AppConfig;
       db.configs.push(newC);
       saveLocalDB(db);
       return newC;
     }
-    const conf = { puntos_objetivo_dia: 10.00, ...db.configs[idx], ...newConfig } as AppConfig;
+    const conf = { puntos_objetivo_dia: defaultPuntos, ...db.configs[idx], ...newConfig } as AppConfig;
     db.configs[idx] = conf;
     saveLocalDB(db);
     return conf;
