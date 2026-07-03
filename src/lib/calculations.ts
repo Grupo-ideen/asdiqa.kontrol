@@ -69,7 +69,7 @@ export function calculateParteMetrics(
     g => g.fecha === parte.fecha && g.brigada_id === parte.brigada_id && (!g.tipo_coste || g.tipo_coste === 'unico')
   );
   const mensuales = gastos.filter(
-    g => g.brigada_id === parte.brigada_id && g.fecha.startsWith(yyyyMm) && g.tipo_coste === 'mensual'
+    g => g.brigada_id === parte.brigada_id && g.fecha.substring(0, 7) <= yyyyMm && g.tipo_coste === 'mensual'
   );
   const diarios = gastos.filter(
     g => g.brigada_id === parte.brigada_id && g.fecha.startsWith(yyyyMm) && g.tipo_coste === 'diario'
@@ -200,7 +200,7 @@ export function calculateBrigadePeriodMetrics(
 
       // Prorrateo de gastos mensuales del mes (fijo 20 días laborables)
       const mensualesMes = gastos.filter(
-        g => g.brigada_id === brigadaId && g.fecha.startsWith(yyyyMm) && g.tipo_coste === 'mensual'
+        g => g.brigada_id === brigadaId && g.fecha.substring(0, 7) <= yyyyMm && g.tipo_coste === 'mensual'
       );
       mensualesMes.forEach(g => {
         totalExpenses += (g.importe / 20);
