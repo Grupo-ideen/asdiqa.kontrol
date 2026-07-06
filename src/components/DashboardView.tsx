@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useApp } from '@/lib/AppContext';
 import { calculateBrigadePeriodMetrics } from '@/lib/calculations';
 import PerformanceTrafficLight from './PerformanceTrafficLight';
@@ -14,14 +14,33 @@ export default function DashboardView() {
   };
 
   // Filtros de fecha
-  const [fechaInicio, setFechaInicio] = useState(() => {
-    // Primer día del mes actual
-    const d = new Date();
-    return new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
-  });
-  const [fechaFin, setFechaFin] = useState(() => {
-    return new Date().toISOString().split('T')[0];
-  });
+  const [fechaInicio, setFechaInicio] = useState('');
+  const [fechaFin, setFechaFin] = useState(() => new Date().toISOString().split('T')[0]);
+  const [userHasChangedDates, setUserHasChangedDates] = useState(false);
+  const [lastObraId, setLastObraId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (currentObra) {
+      if (currentObra.id !== lastObraId) {
+        setLastObraId(currentObra.id);
+        setUserHasChangedDates(false);
+        return;
+      }
+
+      if (!userHasChangedDates) {
+        const partesObra = partes.filter(p => p.obra_id === currentObra.id);
+        if (partesObra.length > 0) {
+          const fechas = partesObra.map(p => p.fecha).sort();
+          setFechaInicio(fechas[0]);
+        } else {
+          const d = new Date();
+          const firstDay = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+          setFechaInicio(firstDay);
+        }
+        setFechaFin(new Date().toISOString().split('T')[0]);
+      }
+    }
+  }, [partes, currentObra, userHasChangedDates, lastObraId]);
   
   const [selectedBrigadaId, setSelectedBrigadaId] = useState('');
 
@@ -72,22 +91,12 @@ export default function DashboardView() {
   // Semáforo consolidado
   let totalStatus: 'rojo' | 'verde' | 'azul' = 'rojo';
   if (config) {
-    if (isTarea) {
-      if (avgCompliance < config.umbral_verde) {
-        totalStatus = 'rojo';
-      } else if (avgCompliance >= config.umbral_verde && avgCompliance < config.umbral_azul) {
-        totalStatus = 'verde';
-      } else {
-        totalStatus = 'azul';
-      }
+    if (avgCompliance < config.umbral_verde || totalMargin <= config.margen_minimo) {
+      totalStatus = 'rojo';
+    } else if (avgCompliance >= config.umbral_verde && avgCompliance < config.umbral_azul) {
+      totalStatus = 'verde';
     } else {
-      if (avgCompliance < config.umbral_verde || totalMargin <= config.margen_minimo) {
-        totalStatus = 'rojo';
-      } else if (avgCompliance >= config.umbral_verde && avgCompliance < config.umbral_azul) {
-        totalStatus = 'verde';
-      } else {
-        totalStatus = 'azul';
-      }
+      totalStatus = 'azul';
     }
   }
 
@@ -118,13 +127,17 @@ export default function DashboardView() {
       });
     }
 
+    if (isTarea) {
+      revenue = dayPuntosAchieved * (config?.precio_punto ?? 0);
+    }
+
     const avgLineCompliance = isTarea
       ? (p.num_personas * (config?.puntos_objetivo_dia ?? 10.00) > 0 ? (dayPuntosAchieved / (p.num_personas * (config?.puntos_objetivo_dia ?? 10.00))) * 100 : 0)
       : (numLineas > 0 ? complianceSum / numLineas : 0);
-    const dayGastos = isTarea ? 0 : gastos
+    const dayGastos = gastos
       .filter(g => g.fecha === p.fecha && g.brigada_id === p.brigada_id)
       .reduce((sum, g) => sum + g.importe, 0);
-    const dayMargin = isTarea ? 0 : revenue - dayGastos;
+    const dayMargin = revenue - dayGastos;
 
     return {
       fecha: p.fecha,
@@ -216,7 +229,7 @@ export default function DashboardView() {
           <h3 style={{ fontSize: '1rem', margin: 0 }}>Evolución Temporal de Rendimiento</h3>
           <div style={{ display: 'flex', gap: '1rem', fontSize: '0.8rem' }}>
             <span style={{ color: 'var(--status-blue)', fontWeight: 600 }}>● Cumplimiento (%)</span>
-            {!isTarea && <span style={{ color: '#d97706', fontWeight: 600 }}>■ Margen (€)</span>}
+            <span style={{ color: '#d97706', fontWeight: 600 }}>■ Margen (€)</span>
           </div>
         </div>
 
@@ -249,15 +262,13 @@ export default function DashboardView() {
           />
           
           {/* Gráfico de Margen (Línea Amarilla/Marrón) */}
-          {!isTarea && (
-            <polyline
-              fill="none"
-              stroke="#d97706"
-              strokeWidth="2"
-              strokeDasharray="3 2"
-              points={marginPoints}
-            />
-          )}
+          <polyline
+            fill="none"
+            stroke="#d97706"
+            strokeWidth="2"
+            strokeDasharray="3 2"
+            points={marginPoints}
+          />
 
           {/* Puntos y Etiquetas */}
           {chartDataPoints.map((d, idx) => {
@@ -270,7 +281,7 @@ export default function DashboardView() {
                 {/* Punto cumplimiento */}
                 <circle cx={x} cy={yComp} r="4" fill="var(--status-blue)" />
                 {/* Punto margen */}
-                {!isTarea && <rect x={x - 3} y={yMarg - 3} width="6" height="6" fill="#d97706" />}
+                <rect x={x - 3} y={yMarg - 3} width="6" height="6" fill="#d97706" />
 
                 {/* Fecha en eje X (primer, intermedio y último punto) */}
                 {(idx === 0 || idx === chartDataPoints.length - 1 || (chartDataPoints.length > 2 && idx === Math.floor(chartDataPoints.length / 2))) && (
@@ -343,7 +354,10 @@ export default function DashboardView() {
             type="date"
             id="dash-desde"
             value={fechaInicio}
-            onChange={e => setFechaInicio(e.target.value)}
+            onChange={e => {
+              setFechaInicio(e.target.value);
+              setUserHasChangedDates(true);
+            }}
           />
         </div>
 
@@ -353,7 +367,10 @@ export default function DashboardView() {
             type="date"
             id="dash-hasta"
             value={fechaFin}
-            onChange={e => setFechaFin(e.target.value)}
+            onChange={e => {
+              setFechaFin(e.target.value);
+              setUserHasChangedDates(true);
+            }}
           />
         </div>
 
@@ -379,16 +396,19 @@ export default function DashboardView() {
         
         <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.25rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
           <span style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
-            {isTarea ? 'Tareas Realizadas' : 'Volumen Ejecutado'}
+            {isTarea ? 'Producción por Puntos' : 'Volumen Ejecutado'}
           </span>
-          <h2 style={{ fontSize: '1.8rem', margin: '0.25rem 0 0.5rem 0', fontWeight: 700 }}>
+          <h2 style={{ fontSize: '1.8rem', margin: '0.25rem 0 0.5rem 0', fontWeight: 700, color: isTarea ? 'var(--status-blue)' : 'inherit' }}>
             {isTarea 
-              ? totalMetros.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+              ? `${totalPuntosAchieved.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} pts`
               : `${totalMetros.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`
             }
           </h2>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-            {isTarea ? 'Total tareas completadas' : 'Total metros registrados'}
+            {isTarea 
+              ? `${totalMetros.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} tareas (Objetivo: ${totalPuntosTarget.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} pts)`
+              : 'Total metros registrados'
+            }
           </span>
         </div>
 
@@ -404,36 +424,22 @@ export default function DashboardView() {
           </span>
         </div>
 
-        {isTarea ? (
-          <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.25rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
-            <span style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
-              Puntos Totales Conseguidos
-            </span>
-            <h2 style={{ fontSize: '1.8rem', margin: '0.25rem 0 0.5rem 0', fontWeight: 700, color: 'var(--status-blue)' }}>
-              {totalPuntosAchieved.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} pts
-            </h2>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-              Objetivo: {totalPuntosTarget.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} pts
-            </span>
-          </div>
-        ) : (
-          <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.25rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
-            <span style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
-              Margen Neto Consolidado
-            </span>
-            <h2 style={{
-              fontSize: '1.8rem',
-              margin: '0.25rem 0 0.5rem 0',
-              fontWeight: 700,
-              color: totalMargin > 0 ? 'var(--status-green)' : totalMargin < 0 ? 'var(--status-red)' : 'inherit'
-            }}>
-              {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(totalMargin)}
-            </h2>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
-              Ingresos: {totalRevenue.toFixed(0)}€ | Gastos: {totalExpenses.toFixed(0)}€
-            </span>
-          </div>
-        )}
+        <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.25rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
+          <span style={{ fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>
+            Margen Neto Consolidado
+          </span>
+          <h2 style={{
+            fontSize: '1.8rem',
+            margin: '0.25rem 0 0.5rem 0',
+            fontWeight: 700,
+            color: totalMargin > 0 ? 'var(--status-green)' : totalMargin < 0 ? 'var(--status-red)' : 'inherit'
+          }}>
+            {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(totalMargin)}
+          </h2>
+          <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
+            Ingresos: {totalRevenue.toFixed(0)}€ | Gastos: {totalExpenses.toFixed(0)}€
+          </span>
+        </div>
 
         <div style={{ 
           backgroundColor: totalStatus === 'rojo' ? 'var(--status-red-bg)' : totalStatus === 'verde' ? 'var(--status-green-bg)' : 'var(--status-blue-bg)', 
@@ -469,10 +475,10 @@ export default function DashboardView() {
               <th>Jefe de Equipo</th>
               <th style={{ textAlign: 'center' }}>Nº Partes</th>
               <th style={{ textAlign: 'right' }}>{isTarea ? 'Tareas Realizadas' : 'Metros Acum.'}</th>
-              {!isTarea && <th style={{ textAlign: 'right' }}>Ingresos Gen.</th>}
-              {!isTarea && <th style={{ textAlign: 'right' }}>Gastos Real.</th>}
-              {!isTarea && <th style={{ textAlign: 'right' }}>Margen Neto</th>}
               {isTarea && <th style={{ textAlign: 'right' }}>Puntos Cons.</th>}
+              <th style={{ textAlign: 'right' }}>Ingresos Gen.</th>
+              <th style={{ textAlign: 'right' }}>Gastos Real.</th>
+              <th style={{ textAlign: 'right' }}>Margen Neto</th>
               <th style={{ textAlign: 'right' }}>% Cumpl. Medio</th>
               <th style={{ textAlign: 'center' }}>Semáforo</th>
             </tr>
@@ -503,20 +509,20 @@ export default function DashboardView() {
                   <td style={{ textAlign: 'right' }}>
                     {isTarea ? item.metrosAcumulados.toFixed(0) : `${item.metrosAcumulados.toFixed(1)} m`}
                   </td>
-                  {!isTarea && <td style={{ textAlign: 'right' }}>{formattedRevenue}</td>}
-                  {!isTarea && <td style={{ textAlign: 'right' }}>{formattedExpenses}</td>}
-                  {!isTarea && <td style={{
+                  {isTarea && <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--status-blue)' }}>{pointsAchieved.toFixed(0)} pts</td>}
+                  <td style={{ textAlign: 'right' }}>{formattedRevenue}</td>
+                  <td style={{ textAlign: 'right' }}>{formattedExpenses}</td>
+                  <td style={{
                     textAlign: 'right',
                     fontWeight: 600,
                     color: item.margin > 0 ? 'var(--status-green)' : item.margin < 0 ? 'var(--status-red)' : 'inherit'
-                  }}>{formattedMargin}</td>}
-                  {isTarea && <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--status-blue)' }}>{pointsAchieved.toFixed(0)} pts</td>}
+                  }}>{formattedMargin}</td>
                   <td style={{ textAlign: 'right', fontWeight: 600 }}>{roundedCompliance}%</td>
                   <td style={{ textAlign: 'center' }}>
                     <PerformanceTrafficLight
                       status={item.status}
                       compliance={item.averageCompliance}
-                      margin={isTarea ? 1 : item.margin}
+                      margin={item.margin}
                       compact={true}
                       isTarea={isTarea}
                     />
@@ -526,7 +532,7 @@ export default function DashboardView() {
             })}
             {brigadeMetricsList.length === 0 && (
               <tr>
-                <td colSpan={isTarea ? 7 : 9} style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: '2rem' }}>
+                <td colSpan={isTarea ? 10 : 9} style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: '2rem' }}>
                   No hay brigadas registradas en el sistema.
                 </td>
               </tr>

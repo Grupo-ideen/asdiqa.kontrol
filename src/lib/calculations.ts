@@ -57,6 +57,8 @@ export function calculateParteMetrics(
   if (isTarea) {
     const objetivoGlobalDia = parte.num_personas * (config.puntos_objetivo_dia ?? 10.00);
     averageCompliance = objetivoGlobalDia > 0 ? (totalPuntosAchieved / objetivoGlobalDia) * 100 : 0;
+    // En obras de tareas, ingresos = puntos conseguidos * precio del punto
+    totalRevenue = totalPuntosAchieved * (config.precio_punto ?? 0);
   } else {
     averageCompliance = numLineas > 0 ? complianceSum / numLineas : 0;
   }
@@ -88,39 +90,24 @@ export function calculateParteMetrics(
     return sum + (monthlyCost / 20); // Fijo 20 días laborables
   }, 0);
 
-  const totalExpenses = isTarea ? 0 : (manualExpenses + resourceDailyExpenses);
+  const totalExpenses = manualExpenses + resourceDailyExpenses;
 
   // Margen económico
-  const margin = isTarea ? 0 : (totalRevenue - totalExpenses);
+  const margin = totalRevenue - totalExpenses;
 
-  // Lógica del semáforo
+  // Lógica del semáforo (la misma para metro y tarea)
   let status: 'rojo' | 'verde' | 'azul' = 'rojo';
   let statusLabel = 'Rojo';
 
-  if (isTarea) {
-    // Si es por tareas, el semáforo depende exclusivamente del cumplimiento de puntos (no importa el dinero/gastos)
-    if (averageCompliance < umbralVerde) {
-      status = 'rojo';
-      statusLabel = 'Deficiente (Rojo)';
-    } else if (averageCompliance >= umbralVerde && averageCompliance < umbralAzul) {
-      status = 'verde';
-      statusLabel = 'Estable (Verde)';
-    } else if (averageCompliance >= umbralAzul) {
-      status = 'azul';
-      statusLabel = 'Sobresaliente (Azul)';
-    }
-  } else {
-    // Metro type logic
-    if (averageCompliance < umbralVerde || margin <= marginMinimo) {
-      status = 'rojo';
-      statusLabel = 'Deficiente (Rojo)';
-    } else if (averageCompliance >= umbralVerde && averageCompliance < umbralAzul) {
-      status = 'verde';
-      statusLabel = 'Estable (Verde)';
-    } else if (averageCompliance >= umbralAzul) {
-      status = 'azul';
-      statusLabel = 'Sobresaliente (Azul)';
-    }
+  if (averageCompliance < umbralVerde || margin <= marginMinimo) {
+    status = 'rojo';
+    statusLabel = 'Deficiente (Rojo)';
+  } else if (averageCompliance >= umbralVerde && averageCompliance < umbralAzul) {
+    status = 'verde';
+    statusLabel = 'Estable (Verde)';
+  } else if (averageCompliance >= umbralAzul) {
+    status = 'azul';
+    statusLabel = 'Sobresaliente (Azul)';
   }
 
   return {
@@ -174,47 +161,45 @@ export function calculateBrigadePeriodMetrics(
   let totalRevenue = 0;
   let totalExpenses = 0;
 
-  if (!isTarea) {
-    // 1. Sumar gastos manuales de tipo único dentro del rango del periodo
-    const unicosPeriodo = gastos.filter(
-      g => g.brigada_id === brigadaId && 
-           (!g.tipo_coste || g.tipo_coste === 'unico') &&
-           (!fechaInicio || g.fecha >= fechaInicio) &&
-           (!fechaFin || g.fecha <= fechaFin)
+  // 1. Sumar gastos manuales de tipo único dentro del rango del periodo
+  const unicosPeriodo = gastos.filter(
+    g => g.brigada_id === brigadaId && 
+         (!g.tipo_coste || g.tipo_coste === 'unico') &&
+         (!fechaInicio || g.fecha >= fechaInicio) &&
+         (!fechaFin || g.fecha <= fechaFin)
+  );
+  totalExpenses = unicosPeriodo.reduce((sum, g) => sum + g.importe, 0);
+
+  // 2. Costes de recursos base mensuales
+  const recursosBrigada = recursos.filter(r => r.brigada_id === brigadaId);
+  const resourceBaseCost = recursosBrigada.reduce((sum, r) => {
+    const monthlyCost = Number(r.sueldo || 0) + Number(r.seguridad_social || 0) + Number(r.alojamiento || 0) + Number(r.otros_costes || 0);
+    return sum + monthlyCost;
+  }, 0);
+
+  // 3. Imputar costes proporcionales mensuales y costes diarios por cada jornada trabajada (cada parte de trabajo en el rango)
+  partesFiltrados.forEach(p => {
+    const yyyyMm = p.fecha.substring(0, 7);
+
+    // Prorrateo de recursos del mes (fijo 20 días laborables)
+    totalExpenses += (resourceBaseCost / 20);
+
+    // Prorrateo de gastos mensuales del mes (fijo 20 días laborables)
+    const mensualesMes = gastos.filter(
+      g => g.brigada_id === brigadaId && g.fecha.substring(0, 7) <= yyyyMm && g.tipo_coste === 'mensual'
     );
-    totalExpenses = unicosPeriodo.reduce((sum, g) => sum + g.importe, 0);
-
-    // 2. Costes de recursos base mensuales
-    const recursosBrigada = recursos.filter(r => r.brigada_id === brigadaId);
-    const resourceBaseCost = recursosBrigada.reduce((sum, r) => {
-      const monthlyCost = Number(r.sueldo || 0) + Number(r.seguridad_social || 0) + Number(r.alojamiento || 0) + Number(r.otros_costes || 0);
-      return sum + monthlyCost;
-    }, 0);
-
-    // 3. Imputar costes proporcionales mensuales y costes diarios por cada jornada trabajada (cada parte de trabajo en el rango)
-    partesFiltrados.forEach(p => {
-      const yyyyMm = p.fecha.substring(0, 7);
-
-      // Prorrateo de recursos del mes (fijo 20 días laborables)
-      totalExpenses += (resourceBaseCost / 20);
-
-      // Prorrateo de gastos mensuales del mes (fijo 20 días laborables)
-      const mensualesMes = gastos.filter(
-        g => g.brigada_id === brigadaId && g.fecha.substring(0, 7) <= yyyyMm && g.tipo_coste === 'mensual'
-      );
-      mensualesMes.forEach(g => {
-        totalExpenses += (g.importe / 20);
-      });
-
-      // Gastos diarios imputados por jornada
-      const diariosMes = gastos.filter(
-        g => g.brigada_id === brigadaId && g.fecha.startsWith(yyyyMm) && g.tipo_coste === 'diario'
-      );
-      diariosMes.forEach(g => {
-        totalExpenses += g.importe;
-      });
+    mensualesMes.forEach(g => {
+      totalExpenses += (g.importe / 20);
     });
-  }
+
+    // Gastos diarios imputados por jornada
+    const diariosMes = gastos.filter(
+      g => g.brigada_id === brigadaId && g.fecha.startsWith(yyyyMm) && g.tipo_coste === 'diario'
+    );
+    diariosMes.forEach(g => {
+      totalExpenses += g.importe;
+    });
+  });
 
   let totalMetros = 0;
   let complianceSum = 0;
@@ -253,26 +238,20 @@ export function calculateBrigadePeriodMetrics(
     ? (totalPuntosTarget > 0 ? (totalPuntosAchieved / totalPuntosTarget) * 100 : 0)
     : (countLineas > 0 ? complianceSum / countLineas : 0);
 
-  const margin = isTarea ? 0 : (totalRevenue - totalExpenses);
+  if (isTarea) {
+    totalRevenue = totalPuntosAchieved * (config.precio_punto ?? 0);
+  }
+
+  const margin = totalRevenue - totalExpenses;
 
   // Lógica del semáforo global
   let status: 'rojo' | 'verde' | 'azul' = 'rojo';
-  if (isTarea) {
-    if (averageCompliance < config.umbral_verde) {
-      status = 'rojo';
-    } else if (averageCompliance >= config.umbral_verde && averageCompliance < config.umbral_azul) {
-      status = 'verde';
-    } else if (averageCompliance >= config.umbral_azul) {
-      status = 'azul';
-    }
-  } else {
-    if (averageCompliance < config.umbral_verde || margin <= config.margen_minimo) {
-      status = 'rojo';
-    } else if (averageCompliance >= config.umbral_verde && averageCompliance < config.umbral_azul) {
-      status = 'verde';
-    } else if (averageCompliance >= config.umbral_azul) {
-      status = 'azul';
-    }
+  if (averageCompliance < config.umbral_verde || margin <= config.margen_minimo) {
+    status = 'rojo';
+  } else if (averageCompliance >= config.umbral_verde && averageCompliance < config.umbral_azul) {
+    status = 'verde';
+  } else if (averageCompliance >= config.umbral_azul) {
+    status = 'azul';
   }
 
   return {

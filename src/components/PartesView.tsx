@@ -34,8 +34,8 @@ export default function PartesView() {
   const [formBrigadaId, setFormBrigadaId] = useState('');
   const [formNumPersonas, setFormNumPersonas] = useState(1);
   const [formObservaciones, setFormObservaciones] = useState('');
-  const [formLineas, setFormLineas] = useState<Omit<ParteLinea, 'id' | 'parte_id'>[]>([
-    { partida_id: '', metros_ejecutados: 0 }
+  const [formLineas, setFormLineas] = useState<(Omit<ParteLinea, 'id' | 'parte_id'> & { desgloseItems?: { descripcion: string; cantidad: number }[] })[]>([
+    { partida_id: '', metros_ejecutados: 0, desgloseItems: [] }
   ]);
 
   const handleBrigadaChange = (id: string) => {
@@ -59,7 +59,7 @@ export default function PartesView() {
 
   // Manejo de líneas en el formulario
   const handleAddLinea = () => {
-    setFormLineas([...formLineas, { partida_id: '', metros_ejecutados: 0 }]);
+    setFormLineas([...formLineas, { partida_id: '', metros_ejecutados: 0, desgloseItems: [] }]);
   };
 
   const handleRemoveLinea = (index: number) => {
@@ -78,6 +78,48 @@ export default function PartesView() {
     setFormLineas(updated);
   };
 
+  const handleAddDesgloseItem = (lineaIndex: number) => {
+    const updated = [...formLineas];
+    const items = updated[lineaIndex].desgloseItems || [];
+    updated[lineaIndex].desgloseItems = [...items, { descripcion: '', cantidad: 0 }];
+    setFormLineas(updated);
+  };
+
+  const handleRemoveDesgloseItem = (lineaIndex: number, itemIndex: number) => {
+    const updated = [...formLineas];
+    const items = updated[lineaIndex].desgloseItems || [];
+    const newItems = items.filter((_, i) => i !== itemIndex);
+    updated[lineaIndex].desgloseItems = newItems;
+
+    // Recalcular metros_ejecutados automáticamente
+    const totalQty = newItems.reduce((sum, item) => sum + (item.cantidad || 0), 0);
+    updated[lineaIndex].metros_ejecutados = totalQty;
+
+    setFormLineas(updated);
+  };
+
+  const handleDesgloseChange = (
+    lineaIndex: number,
+    itemIndex: number,
+    field: 'descripcion' | 'cantidad',
+    value: string
+  ) => {
+    const updated = [...formLineas];
+    const items = [...(updated[lineaIndex].desgloseItems || [])];
+    if (field === 'cantidad') {
+      items[itemIndex].cantidad = Number(value) || 0;
+    } else {
+      items[itemIndex].descripcion = value;
+    }
+    updated[lineaIndex].desgloseItems = items;
+
+    // Recalcular metros_ejecutados automáticamente
+    const totalQty = items.reduce((sum, item) => sum + (item.cantidad || 0), 0);
+    updated[lineaIndex].metros_ejecutados = totalQty;
+
+    setFormLineas(updated);
+  };
+
   // Abrir formulario para nuevo parte
   const handleOpenNewForm = () => {
     setEditingParte(null);
@@ -85,7 +127,7 @@ export default function PartesView() {
     setFormBrigadaId(brigadas[0]?.id || '');
     setFormNumPersonas(brigadas[0]?.num_personas_habitual || 1);
     setFormObservaciones('');
-    setFormLineas([{ partida_id: partidas[0]?.id || '', metros_ejecutados: 0 }]);
+    setFormLineas([{ partida_id: partidas[0]?.id || '', metros_ejecutados: 0, desgloseItems: [] }]);
     setIsFormOpen(true);
   };
 
@@ -102,10 +144,21 @@ export default function PartesView() {
     setFormNumPersonas(parte.num_personas);
     setFormObservaciones(parte.observaciones || '');
     
-    const lines = parte.lineas?.map(l => ({
-      partida_id: l.partida_id,
-      metros_ejecutados: l.metros_ejecutados
-    })) || [{ partida_id: '', metros_ejecutados: 0 }];
+    const lines = parte.lineas?.map(l => {
+      let items: { descripcion: string; cantidad: number }[] = [];
+      if (l.desglose) {
+        try {
+          items = JSON.parse(l.desglose);
+        } catch (e) {
+          console.error('Error parsing desglose JSON:', e);
+        }
+      }
+      return {
+        partida_id: l.partida_id,
+        metros_ejecutados: l.metros_ejecutados,
+        desgloseItems: items
+      };
+    }) || [{ partida_id: '', metros_ejecutados: 0, desgloseItems: [] }];
 
     setFormLineas(lines);
     setIsFormOpen(true);
@@ -120,8 +173,20 @@ export default function PartesView() {
       return;
     }
 
-    // Filtrar líneas vacías
-    const validLineas = formLineas.filter(l => l.partida_id && l.metros_ejecutados > 0);
+    // Filtrar líneas vacías y mapear desglose
+    const validLineas = formLineas
+      .filter(l => l.partida_id && l.metros_ejecutados > 0)
+      .map(l => {
+        const payload: Omit<ParteLinea, 'id' | 'parte_id'> = {
+          partida_id: l.partida_id,
+          metros_ejecutados: l.metros_ejecutados
+        };
+        if (currentObra?.tipo === 'tarea' && l.desgloseItems && l.desgloseItems.length > 0) {
+          payload.desglose = JSON.stringify(l.desgloseItems);
+        }
+        return payload;
+      });
+
     if (validLineas.length === 0) {
       showToast('Debes agregar al menos una línea de trabajo con cantidad superior a 0.', 'error');
       return;
@@ -257,53 +322,133 @@ export default function PartesView() {
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 {formLineas.map((linea, index) => (
-                  <div key={index} className="linea-form-row">
-                    <div className="linea-field-select">
-                      <label htmlFor={`partida-${index}`} style={{ display: 'none' }}>Partida</label>
-                      <select
-                        id={`partida-${index}`}
-                        value={linea.partida_id}
-                        onChange={e => handleLineaChange(index, 'partida_id', e.target.value)}
-                        required
-                      >
-                        <option value="">{currentObra?.tipo === 'tarea' ? 'Selecciona tarea...' : 'Selecciona partida de presupuesto...'}</option>
-                        {partidas.map(p => (
-                          <option key={p.id} value={p.id}>
-                            [{p.codigo}] {p.descripcion} ({currentObra?.tipo === 'tarea' ? `${Math.round(Number(p.puntos || p.precio_unitario))} pts` : `${isAdmin ? `${p.precio_unitario}€/${p.unidad}` : p.unidad}`})
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  <div key={index} style={{ 
+                    borderBottom: '1px solid var(--border-color)', 
+                    paddingBottom: '0.75rem', 
+                    marginBottom: '0.75rem',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '0.5rem'
+                  }}>
+                    <div className="linea-form-row" style={{ marginBottom: 0 }}>
+                      <div className="linea-field-select">
+                        <label htmlFor={`partida-${index}`} style={{ display: 'none' }}>Partida</label>
+                        <select
+                          id={`partida-${index}`}
+                          value={linea.partida_id}
+                          onChange={e => handleLineaChange(index, 'partida_id', e.target.value)}
+                          required
+                        >
+                          <option value="">{currentObra?.tipo === 'tarea' ? 'Selecciona tarea...' : 'Selecciona partida de presupuesto...'}</option>
+                          {partidas.map(p => (
+                            <option key={p.id} value={p.id}>
+                              [{p.codigo}] {p.descripcion} ({currentObra?.tipo === 'tarea' ? `${Math.round(Number(p.puntos || p.precio_unitario))} pts` : `${isAdmin ? `${p.precio_unitario}€/${p.unidad}` : p.unidad}`})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-                    <div className="linea-field-qty">
-                      <label htmlFor={`metros-${index}`} style={{ display: 'none' }}>Cantidad ejecutada</label>
-                      <input
-                        type="number"
-                        id={`metros-${index}`}
-                        placeholder={currentObra?.tipo === 'tarea' ? "5" : "120"}
-                        value={linea.metros_ejecutados || ''}
-                        onChange={e => handleLineaChange(index, 'metros_ejecutados', e.target.value)}
-                        min="0.1"
-                        step="0.1"
-                        required
-                        style={{ flex: 1 }}
-                      />
-                      {currentObra?.tipo !== 'tarea' && (
-                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
-                          {partidas.find(p => p.id === linea.partida_id)?.unidad || 'm'}
-                        </span>
+                      <div className="linea-field-qty">
+                        <label htmlFor={`metros-${index}`} style={{ display: 'none' }}>Cantidad ejecutada</label>
+                        <input
+                          type="number"
+                          id={`metros-${index}`}
+                          placeholder={currentObra?.tipo === 'tarea' ? "5" : "120"}
+                          value={linea.metros_ejecutados || ''}
+                          onChange={e => handleLineaChange(index, 'metros_ejecutados', e.target.value)}
+                          min="0.1"
+                          step="0.1"
+                          required
+                          readOnly={currentObra?.tipo === 'tarea' && !!linea.desgloseItems && linea.desgloseItems.length > 0}
+                          style={{ 
+                            flex: 1, 
+                            backgroundColor: (currentObra?.tipo === 'tarea' && !!linea.desgloseItems && linea.desgloseItems.length > 0) ? 'var(--bg-tertiary)' : 'inherit' 
+                          }}
+                          title={(currentObra?.tipo === 'tarea' && !!linea.desgloseItems && linea.desgloseItems.length > 0) ? "Calculado automáticamente como la suma del desglose" : undefined}
+                        />
+                        {currentObra?.tipo !== 'tarea' && (
+                          <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                            {partidas.find(p => p.id === linea.partida_id)?.unidad || 'm'}
+                          </span>
+                        )}
+                      </div>
+
+                      {formLineas.length > 1 && (
+                        <button
+                          type="button"
+                          className="danger linea-btn-delete"
+                          onClick={() => handleRemoveLinea(index)}
+                          aria-label="Quitar línea"
+                        >
+                          ✕
+                        </button>
                       )}
                     </div>
 
-                    {formLineas.length > 1 && (
-                      <button
-                        type="button"
-                        className="danger linea-btn-delete"
-                        onClick={() => handleRemoveLinea(index)}
-                        aria-label="Quitar línea"
-                      >
-                        ✕
-                      </button>
+                    {currentObra?.tipo === 'tarea' && (
+                      <div style={{ 
+                        marginLeft: '1rem', 
+                        padding: '0.5rem 0.75rem', 
+                        borderRadius: 'var(--border-radius)', 
+                        backgroundColor: 'var(--bg-tertiary)', 
+                        border: '1px solid var(--border-color)',
+                        display: 'flex', 
+                        flexDirection: 'column', 
+                        gap: '0.5rem' 
+                      }}>
+                        <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          Desglose de Tarea
+                        </div>
+                        
+                        {(linea.desgloseItems || []).map((item, itemIndex) => (
+                          <div key={itemIndex} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                            <input
+                              type="text"
+                              placeholder="Ej: Cable de 1,5"
+                              value={item.descripcion}
+                              onChange={e => handleDesgloseChange(index, itemIndex, 'descripcion', e.target.value)}
+                              style={{ flex: 3, padding: '0.35rem 0.5rem', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}
+                              required
+                            />
+                            <input
+                              type="number"
+                              placeholder="Cant."
+                              value={item.cantidad || ''}
+                              onChange={e => handleDesgloseChange(index, itemIndex, 'cantidad', e.target.value)}
+                              style={{ flex: 1, padding: '0.35rem 0.5rem', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}
+                              min="0.1"
+                              step="0.1"
+                              required
+                            />
+                            <button
+                              type="button"
+                              className="danger"
+                              onClick={() => handleRemoveDesgloseItem(index, itemIndex)}
+                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', borderRadius: '4px' }}
+                              aria-label="Quitar desglose"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                        
+                        <button
+                          type="button"
+                          onClick={() => handleAddDesgloseItem(index)}
+                          style={{ 
+                            alignSelf: 'flex-start', 
+                            fontSize: '0.7rem', 
+                            padding: '0.25rem 0.5rem', 
+                            background: 'none', 
+                            border: '1px dashed var(--border-color)', 
+                            color: 'var(--text-secondary)',
+                            borderRadius: '4px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          + Añadir fila de desglose
+                        </button>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -448,14 +593,14 @@ export default function PartesView() {
                 </div>
                 
                 {metrics && !isJefeEquipo && (
-                   <PerformanceTrafficLight
-                     status={metrics.status}
-                     compliance={metrics.compliancePct}
-                     margin={currentObra?.tipo === 'tarea' ? 1 : metrics.margin}
-                     compact={true}
-                     isTarea={currentObra?.tipo === 'tarea'}
-                   />
-                 )}
+                  <PerformanceTrafficLight
+                    status={metrics.status}
+                    compliance={metrics.compliancePct}
+                    margin={metrics.margin}
+                    compact={true}
+                    isTarea={currentObra?.tipo === 'tarea'}
+                  />
+                )}
               </div>
 
               {/* Detalle de partidas */}
@@ -469,9 +614,28 @@ export default function PartesView() {
                     if (isTarea) {
                       const puntos = (linea as any).partida_puntos ?? 0;
                       const totalPuntos = linea.metros_ejecutados * puntos;
+                      
+                      let items: { descripcion: string; cantidad: number }[] = [];
+                      if (linea.desglose) {
+                        try {
+                          items = JSON.parse(linea.desglose);
+                        } catch (e) {}
+                      }
+                      
                       return (
-                        <li key={linea.id}>
-                          <code>{linea.partida_codigo}</code> — {linea.partida_descripcion}: <strong>{Math.round(linea.metros_ejecutados)}</strong> ({Math.round(puntos)} pts/ud → <strong>{Math.round(totalPuntos)} pts</strong>)
+                        <li key={linea.id} style={{ marginBottom: '0.5rem' }}>
+                          <div>
+                            <code>{linea.partida_codigo}</code> — {linea.partida_descripcion}: <strong>{linea.metros_ejecutados}</strong> ({Math.round(puntos)} pts/ud → <strong>{totalPuntos} pts</strong>)
+                          </div>
+                          {items.length > 0 && (
+                            <ul style={{ listStyle: 'none', paddingLeft: '1.25rem', marginTop: '0.15rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.1rem', fontSize: '0.8rem' }}>
+                              {items.map((it, idx) => (
+                                <li key={idx}>
+                                  ↳ {it.descripcion}: <strong>{it.cantidad}</strong> uds
+                                </li>
+                              ))}
+                            </ul>
+                          )}
                         </li>
                       );
                     }
@@ -497,34 +661,52 @@ export default function PartesView() {
                 currentObra?.tipo === 'tarea' ? (
                   <div
                     style={{
-                      display: 'flex',
-                      gap: '2rem',
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+                      gap: '1rem',
                       backgroundColor: 'var(--bg-secondary)',
                       padding: '0.75rem 1rem',
                       borderRadius: 'var(--border-radius)',
                       fontSize: '0.85rem',
                       border: '1px solid var(--border-color)',
                       marginTop: '0.25rem',
-                      marginBottom: '0.25rem',
-                      flexWrap: 'wrap'
+                      marginBottom: '0.25rem'
                     }}
                   >
                     <div>
-                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Puntos Totales Conseguidos</span>
+                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Puntos Cons.</span>
                       <span style={{ fontWeight: 700, color: 'var(--status-blue)', fontSize: '1rem' }}>
                         {((parte.lineas?.reduce((sum, l) => sum + l.metros_ejecutados * ((l as any).partida_puntos ?? 0), 0)) ?? 0).toFixed(0)} pts
                       </span>
                     </div>
                     <div>
-                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Objetivo del Día</span>
+                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Objetivo Día</span>
                       <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '1rem' }}>
                         {(parte.num_personas * (config?.puntos_objetivo_dia ?? 10)).toFixed(0)} pts
                       </span>
                     </div>
                     <div>
-                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>% Cumplimiento</span>
-                      <span style={{ fontWeight: 700, color: metrics.status === 'rojo' ? 'var(--status-red)' : metrics.status === 'verde' ? 'var(--status-green)' : 'var(--status-blue)', fontSize: '1.05rem' }}>
+                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>% Cumpl.</span>
+                      <span style={{ fontWeight: 700, color: metrics.status === 'rojo' ? 'var(--status-red)' : metrics.status === 'verde' ? 'var(--status-green)' : 'var(--status-blue)', fontSize: '1rem' }}>
                         {metrics.compliancePct.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Ingresos Gen.</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.revenue)}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Gastos Real.</span>
+                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.expenses)}
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Margen Neto</span>
+                      <span style={{ fontWeight: 600, color: metrics.margin >= 0 ? '#4cbd6d' : 'var(--status-red)' }}>
+                        {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.margin)}
                       </span>
                     </div>
                   </div>

@@ -88,7 +88,7 @@ export default function PerformanceTrafficLight({
           border: `1px solid ${style.border}`,
           color: style.color
         }}
-        title={isTarea ? `${style.label}: ${style.desc} (${roundedCompliance}% cumpl.)` : `${style.label}: ${style.desc} (${roundedCompliance}% cumpl., ${formattedMargin} margen)`}
+        title={`${style.label}: ${style.desc} (${roundedCompliance}% cumpl., ${formattedMargin} margen)`}
       >
         <span aria-hidden="true" style={{ display: 'inline-flex', alignItems: 'center' }}>
           {renderIcon(10)}
@@ -111,7 +111,7 @@ export default function PerformanceTrafficLight({
         color: style.color
       }}
       role="status"
-      aria-label={isTarea ? `Rendimiento: ${style.label}. Cumplimiento ${roundedCompliance}%.` : `Rendimiento: ${style.label}. Cumplimiento ${roundedCompliance}%. Margen ${formattedMargin}`}
+      aria-label={`Rendimiento: ${style.label}. Cumplimiento ${roundedCompliance}%. Margen ${formattedMargin}`}
     >
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600 }}>
@@ -127,7 +127,7 @@ export default function PerformanceTrafficLight({
       
       <div style={{ 
         display: 'grid', 
-        gridTemplateColumns: isTarea ? '1fr' : '1fr 1fr', 
+        gridTemplateColumns: '1fr 1fr', 
         gap: '1rem', 
         marginTop: '0.25rem', 
         paddingTop: '0.5rem', 
@@ -137,12 +137,10 @@ export default function PerformanceTrafficLight({
           <span style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', opacity: 0.8 }}>Cumplimiento</span>
           <span style={{ fontSize: '1.15rem', fontWeight: 700 }}>{roundedCompliance}%</span>
         </div>
-        {!isTarea && (
-          <div>
-            <span style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', opacity: 0.8 }}>Margen Neto</span>
-            <span style={{ fontSize: '1.15rem', fontWeight: 700 }}>{formattedMargin}</span>
-          </div>
-        )}
+        <div>
+          <span style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', opacity: 0.8 }}>Margen Neto</span>
+          <span style={{ fontSize: '1.15rem', fontWeight: 700 }}>{formattedMargin}</span>
+        </div>
       </div>
     </div>
   );
