@@ -342,7 +342,7 @@ export default function PartesView() {
                           <option value="">{currentObra?.tipo === 'tarea' ? 'Selecciona tarea...' : 'Selecciona partida de presupuesto...'}</option>
                           {partidas.map(p => (
                             <option key={p.id} value={p.id}>
-                              [{p.codigo}] {p.descripcion} ({currentObra?.tipo === 'tarea' ? `${Math.round(Number(p.puntos || p.precio_unitario))} pts` : `${isAdmin ? `${p.precio_unitario}€/${p.unidad}` : p.unidad}`})
+                              [{p.codigo}] {p.descripcion} ({currentObra?.tipo === 'tarea' ? `${Number(p.puntos || p.precio_unitario).toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts` : `${isAdmin ? `${p.precio_unitario}€/${p.unidad}` : p.unidad}`})
                             </option>
                           ))}
                         </select>
@@ -356,8 +356,8 @@ export default function PartesView() {
                           placeholder={currentObra?.tipo === 'tarea' ? "5" : "120"}
                           value={linea.metros_ejecutados || ''}
                           onChange={e => handleLineaChange(index, 'metros_ejecutados', e.target.value)}
-                          min="0.1"
-                          step="0.1"
+                          min="0.001"
+                          step="any"
                           required
                           readOnly={currentObra?.tipo === 'tarea' && !!linea.desgloseItems && linea.desgloseItems.length > 0}
                           style={{ 
@@ -416,8 +416,8 @@ export default function PartesView() {
                               value={item.cantidad || ''}
                               onChange={e => handleDesgloseChange(index, itemIndex, 'cantidad', e.target.value)}
                               style={{ flex: 1, padding: '0.35rem 0.5rem', fontSize: '0.8rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)' }}
-                              min="0.1"
-                              step="0.1"
+                              min="0.001"
+                              step="any"
                               required
                             />
                             <button
@@ -625,7 +625,7 @@ export default function PartesView() {
                       return (
                         <li key={linea.id} style={{ marginBottom: '0.5rem' }}>
                           <div>
-                            <code>{linea.partida_codigo}</code> — {linea.partida_descripcion}: <strong>{linea.metros_ejecutados}</strong> ({Math.round(puntos)} pts/ud → <strong>{totalPuntos} pts</strong>)
+                            <code>{linea.partida_codigo}</code> — {linea.partida_descripcion}: <strong>{linea.metros_ejecutados}</strong> ({puntos.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts/ud → <strong>{totalPuntos.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts</strong>)
                           </div>
                           {items.length > 0 && (
                             <ul style={{ listStyle: 'none', paddingLeft: '1.25rem', marginTop: '0.15rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.1rem', fontSize: '0.8rem' }}>
@@ -676,13 +676,13 @@ export default function PartesView() {
                     <div>
                       <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Puntos Cons.</span>
                       <span style={{ fontWeight: 700, color: 'var(--status-blue)', fontSize: '1rem' }}>
-                        {((parte.lineas?.reduce((sum, l) => sum + l.metros_ejecutados * ((l as any).partida_puntos ?? 0), 0)) ?? 0).toFixed(0)} pts
+                        {((parte.lineas?.reduce((sum, l) => sum + l.metros_ejecutados * ((l as any).partida_puntos ?? 0), 0)) ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts
                       </span>
                     </div>
                     <div>
                       <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Objetivo Día</span>
                       <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '1rem' }}>
-                        {(parte.num_personas * (config?.puntos_objetivo_dia ?? 10)).toFixed(0)} pts
+                        {(parte.num_personas * (config?.puntos_objetivo_dia ?? 10)).toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts
                       </span>
                     </div>
                     <div>

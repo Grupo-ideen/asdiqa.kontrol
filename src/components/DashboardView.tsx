@@ -400,13 +400,13 @@ export default function DashboardView() {
           </span>
           <h2 style={{ fontSize: '1.8rem', margin: '0.25rem 0 0.5rem 0', fontWeight: 700, color: isTarea ? 'var(--status-blue)' : 'inherit' }}>
             {isTarea 
-              ? `${totalPuntosAchieved.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} pts`
+              ? `${totalPuntosAchieved.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts`
               : `${totalMetros.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`
             }
           </h2>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
             {isTarea 
-              ? `${totalMetros.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} tareas (Objetivo: ${totalPuntosTarget.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 0 })} pts)`
+              ? `${totalMetros.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} tareas (Objetivo: ${totalPuntosTarget.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts)`
               : 'Total metros registrados'
             }
           </span>
@@ -509,7 +509,7 @@ export default function DashboardView() {
                   <td style={{ textAlign: 'right' }}>
                     {isTarea ? item.metrosAcumulados.toFixed(0) : `${item.metrosAcumulados.toFixed(1)} m`}
                   </td>
-                  {isTarea && <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--status-blue)' }}>{pointsAchieved.toFixed(0)} pts</td>}
+                  {isTarea && <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--status-blue)' }}>{pointsAchieved.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts</td>}
                   <td style={{ textAlign: 'right' }}>{formattedRevenue}</td>
                   <td style={{ textAlign: 'right' }}>{formattedExpenses}</td>
                   <td style={{

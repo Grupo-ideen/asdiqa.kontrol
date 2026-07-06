@@ -735,7 +735,7 @@ export default function ConfigView() {
                       id="part-precio"
                       value={partidaPrecio}
                       onChange={e => setPartidaPrecio(Number(e.target.value))}
-                      step={currentObra?.tipo === 'tarea' ? "0.1" : "0.01"}
+                      step="any"
                       min="0"
                       required
                     />
