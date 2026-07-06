@@ -21,9 +21,6 @@ export default function Header({ currentSection, setSection }: HeaderProps) {
 
   const visibleMenuItems = menuItems.filter(item => {
     if (!currentUser) return false;
-    if (currentObra?.tipo === 'tarea' && (item.id === 'gastos' || item.id === 'simulator')) {
-      return false;
-    }
     return item.roles.includes(currentUser.rol);
   });
 

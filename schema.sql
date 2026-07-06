@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS obras (
 
 -- NOTA DE MIGRACIÓN: Si la base de datos ya está creada, ejecutar la siguiente sentencia para actualizarla:
 -- ALTER TABLE obras ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'metro' CHECK (tipo IN ('metro', 'tarea'));
+-- ALTER TABLE config ADD COLUMN IF NOT EXISTS precio_punto NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
+-- ALTER TABLE partes_lineas ADD COLUMN IF NOT EXISTS desglose TEXT;
 
 -- 1. Tabla de Usuarios y Roles
 CREATE TABLE IF NOT EXISTS usuarios (
@@ -77,6 +79,7 @@ CREATE TABLE IF NOT EXISTS partes_lineas (
     parte_id UUID NOT NULL REFERENCES partes_trabajo(id) ON DELETE CASCADE,
     partida_id UUID NOT NULL REFERENCES partidas(id) ON DELETE CASCADE,
     metros_ejecutados NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (metros_ejecutados >= 0),
+    desglose TEXT,
     UNIQUE (parte_id, partida_id)
 );
 
@@ -104,7 +107,8 @@ CREATE TABLE IF NOT EXISTS config (
     umbral_verde NUMERIC(5, 2) NOT NULL DEFAULT 100.00, -- porcentaje mínimo de rendimiento (ej: 100%)
     umbral_azul NUMERIC(5, 2) NOT NULL DEFAULT 110.00, -- porcentaje para superación (ej: 110%)
     margen_minimo NUMERIC(12, 2) NOT NULL DEFAULT 0.00, -- margen en euros
-    puntos_objetivo_dia NUMERIC(12, 2) NOT NULL DEFAULT 27.00
+    puntos_objetivo_dia NUMERIC(12, 2) NOT NULL DEFAULT 27.00,
+    precio_punto NUMERIC(12, 2) NOT NULL DEFAULT 0.00
 );
 
 -- Crear índices para optimizar búsquedas frecuentes

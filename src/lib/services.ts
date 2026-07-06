@@ -379,6 +379,9 @@ export const Services = {
           if (config.puntos_objetivo_dia === undefined) {
             config.puntos_objetivo_dia = defaultPuntos;
           }
+          if (config.precio_punto === undefined) {
+            config.precio_punto = 0.00;
+          }
           return config;
         }
         
@@ -389,7 +392,8 @@ export const Services = {
           umbral_verde: 100.00,
           umbral_azul: 110.00,
           margen_minimo: 0.00,
-          puntos_objetivo_dia: defaultPuntos
+          puntos_objetivo_dia: defaultPuntos,
+          precio_punto: 0.00
         };
         const { data: created, error: err } = await supabase.from('config').insert(newConf).select().single();
         if (!err && created) return created as AppConfig;
@@ -407,13 +411,24 @@ export const Services = {
         umbral_verde: 100.00,
         umbral_azul: 110.00,
         margen_minimo: 0.00,
-        puntos_objetivo_dia: defaultPuntos
+        puntos_objetivo_dia: defaultPuntos,
+        precio_punto: 0.00
       };
       db.configs.push(conf);
       saveLocalDB(db);
-    } else if (conf.puntos_objetivo_dia === undefined) {
-      conf.puntos_objetivo_dia = defaultPuntos;
-      saveLocalDB(db);
+    } else {
+      let needsSave = false;
+      if (conf.puntos_objetivo_dia === undefined) {
+        conf.puntos_objetivo_dia = defaultPuntos;
+        needsSave = true;
+      }
+      if (conf.precio_punto === undefined) {
+        conf.precio_punto = 0.00;
+        needsSave = true;
+      }
+      if (needsSave) {
+        saveLocalDB(db);
+      }
     }
     return conf;
   },
@@ -448,13 +463,14 @@ export const Services = {
         umbral_azul: 110.00,
         margen_minimo: 0.00,
         puntos_objetivo_dia: defaultPuntos,
+        precio_punto: 0.00,
         ...newConfig
       } as AppConfig;
       db.configs.push(newC);
       saveLocalDB(db);
       return newC;
     }
-    const conf = { puntos_objetivo_dia: defaultPuntos, ...db.configs[idx], ...newConfig } as AppConfig;
+    const conf = { puntos_objetivo_dia: defaultPuntos, precio_punto: 0.00, ...db.configs[idx], ...newConfig } as AppConfig;
     db.configs[idx] = conf;
     saveLocalDB(db);
     return conf;
@@ -751,6 +767,7 @@ export const Services = {
               parte_id: pl.parte_id,
               partida_id: pl.partida_id,
               metros_ejecutados: Number(pl.metros_ejecutados),
+              desglose: pl.desglose || '',
               partida_codigo: pl.partida?.codigo || 'N/A',
               partida_descripcion: pl.partida?.descripcion || '',
               partida_unidad: pl.partida?.unidad || 'm',
@@ -840,7 +857,8 @@ export const Services = {
         const lineasData = lineas.map(l => ({
           parte_id: parteId,
           partida_id: l.partida_id,
-          metros_ejecutados: l.metros_ejecutados
+          metros_ejecutados: l.metros_ejecutados,
+          desglose: l.desglose || null
         }));
 
         const { error: lineasError } = await supabase.from('partes_lineas').insert(lineasData);
@@ -882,7 +900,8 @@ export const Services = {
         id: `pl-${parteId}-${idx}`,
         parte_id: parteId,
         partida_id: l.partida_id,
-        metros_ejecutados: Number(l.metros_ejecutados)
+        metros_ejecutados: Number(l.metros_ejecutados),
+        desglose: l.desglose
       });
     });
 

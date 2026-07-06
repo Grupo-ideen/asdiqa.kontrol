@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useApp } from '@/lib/AppContext';
 
 export default function SimulatorView() {
-  const { recursos, partidas } = useApp();
+  const { recursos, partidas, config, currentObra } = useApp();
 
   const [selectedRecursoId, setSelectedRecursoId] = useState('');
   const [selectedPartidaId, setSelectedPartidaId] = useState('');
@@ -23,7 +23,12 @@ export default function SimulatorView() {
   const costeDiario = totalMensual / 20;
 
   // Precio unitario
-  const precioUnitario = partida ? Number(partida.precio_unitario) : 0;
+  const isTarea = currentObra?.tipo === 'tarea';
+  const precioUnitario = partida 
+    ? (isTarea 
+        ? Number(partida.puntos || 0) * Number(config?.precio_punto || 0)
+        : Number(partida.precio_unitario))
+    : 0;
 
   // Metros para ser rentable (Break-even): Coste diario / Precio unitario
   const breakEvenMeters = precioUnitario > 0 ? costeDiario / precioUnitario : 0;
@@ -103,7 +108,7 @@ export default function SimulatorView() {
                 <option value="">Selecciona partida...</option>
                 {partidas.map(p => (
                   <option key={p.id} value={p.id}>
-                    {p.codigo} — {p.descripcion.substring(0, 50)}... ({p.precio_unitario}€/{p.unidad})
+                    {p.codigo} — {p.descripcion.substring(0, 50)}... {isTarea ? `(${Math.round(p.puntos || 0)} pts / eq. ${(Number(p.puntos || 0) * Number(config?.precio_punto || 0)).toFixed(2)}€)` : `(${p.precio_unitario}€/${p.unidad})`}
                   </option>
                 ))}
               </select>

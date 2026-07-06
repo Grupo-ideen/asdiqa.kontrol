@@ -69,6 +69,7 @@ export interface ParteLinea {
   parte_id: string;
   partida_id: string;
   metros_ejecutados: number;
+  desglose?: string; // JSON string conteniendo el desglose: [{descripcion, cantidad}]
   // Relaciones
   partida_codigo?: string;
   partida_descripcion?: string;
@@ -105,6 +106,7 @@ export interface AppConfig {
   umbral_azul: number; // % cumplimiento (ej: 110)
   margen_minimo: number; // euros (ej: 0)
   puntos_objetivo_dia?: number;
+  precio_punto?: number;
 }
 
 export interface Recurso {

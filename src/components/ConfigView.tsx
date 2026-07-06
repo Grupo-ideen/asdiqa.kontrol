@@ -18,6 +18,7 @@ export default function ConfigView() {
   const [umbAzul, setUmbAzul] = useState(config?.umbral_azul || 110);
   const [margenMin, setMargenMin] = useState(config?.margen_minimo || 0);
   const [puntosObjetivoDia, setPuntosObjetivoDia] = useState(config?.puntos_objetivo_dia && config.puntos_objetivo_dia !== 10 ? config.puntos_objetivo_dia : (currentObra?.tipo === 'tarea' ? 27 : 10));
+  const [precioPunto, setPrecioPunto] = useState(config?.precio_punto || 0);
   const [configSaving, setConfigSaving] = useState(false);
   const [configMsg, setConfigMsg] = useState('');
 
@@ -40,15 +41,13 @@ export default function ConfigView() {
       setUmbAzul(config.umbral_azul || 110);
       setMargenMin(config.margen_minimo || 0);
       setPuntosObjetivoDia(config.puntos_objetivo_dia && config.puntos_objetivo_dia !== 10 ? config.puntos_objetivo_dia : (currentObra?.tipo === 'tarea' ? 27 : 10));
+      setPrecioPunto(config.precio_punto || 0);
     } else {
       setPuntosObjetivoDia(currentObra?.tipo === 'tarea' ? 27 : 10);
+      setPrecioPunto(0);
     }
     if (!selectedPartida) {
       setPartidaUnidad(currentObra?.tipo === 'tarea' ? 'ud' : 'm');
-    }
-    // Si la obra es de tipo tarea y estamos en la pestaña de recursos, redirigir a umbrales
-    if (currentObra?.tipo === 'tarea' && activeTab === 'recursos') {
-      setActiveTab('umbrales');
     }
   }, [config, currentObra, selectedPartida, activeTab]);
 
@@ -296,7 +295,8 @@ export default function ConfigView() {
         umbral_verde: Number(umbVerde),
         umbral_azul: Number(umbAzul),
         margen_minimo: Number(margenMin),
-        puntos_objetivo_dia: Number(puntosObjetivoDia)
+        puntos_objetivo_dia: Number(puntosObjetivoDia),
+        precio_punto: Number(precioPunto)
       });
       setConfigMsg('Configuración guardada correctamente.');
       await refreshAll();
@@ -553,21 +553,19 @@ export default function ConfigView() {
         >
           Usuarios y Roles
         </button>
-        {currentObra?.tipo !== 'tarea' && (
-          <button
-            onClick={() => setActiveTab('recursos')}
-            style={{
-              border: 'none',
-              borderBottom: activeTab === 'recursos' ? '2px solid var(--text-primary)' : 'none',
-              borderRadius: 0,
-              padding: '0.5rem 1rem',
-              background: 'none',
-              fontWeight: activeTab === 'recursos' ? 600 : 400
-            }}
-          >
-            Recursos y Costes
-          </button>
-        )}
+        <button
+          onClick={() => setActiveTab('recursos')}
+          style={{
+            border: 'none',
+            borderBottom: activeTab === 'recursos' ? '2px solid var(--text-primary)' : 'none',
+            borderRadius: 0,
+            padding: '0.5rem 1rem',
+            background: 'none',
+            fontWeight: activeTab === 'recursos' ? 600 : 400
+          }}
+        >
+          Recursos y Costes
+        </button>
         <button
           onClick={() => setActiveTab('obras')}
           style={{
@@ -589,17 +587,31 @@ export default function ConfigView() {
           <h2 style={{ fontSize: '1.15rem', marginBottom: '1rem' }}>Umbrales del Semáforo de Rendimiento</h2>
           <form onSubmit={handleSaveConfig} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {currentObra?.tipo === 'tarea' ? (
-              <div>
-                <label htmlFor="puntos-objetivo">Puntos objetivo por persona/día:</label>
-                <input
-                  type="number"
-                  id="puntos-objetivo"
-                  value={puntosObjetivoDia}
-                  onChange={e => setPuntosObjetivoDia(Number(e.target.value))}
-                  min="0.5"
-                  step="0.5"
-                  required
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <label htmlFor="puntos-objetivo">Puntos objetivo por persona/día:</label>
+                  <input
+                    type="number"
+                    id="puntos-objetivo"
+                    value={puntosObjetivoDia}
+                    onChange={e => setPuntosObjetivoDia(Number(e.target.value))}
+                    min="0.5"
+                    step="0.5"
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="precio-punto">Precio asignado a cada punto (€):</label>
+                  <input
+                    type="number"
+                    id="precio-punto"
+                    value={precioPunto}
+                    onChange={e => setPrecioPunto(Number(e.target.value))}
+                    min="0"
+                    step="0.01"
+                    required
+                  />
+                </div>
               </div>
             ) : (
               <div>
@@ -642,21 +654,19 @@ export default function ConfigView() {
               </div>
             </div>
 
-            {currentObra?.tipo !== 'tarea' && (
-              <div>
-                <label htmlFor="margen-min">Margen mínimo aceptable para Verde/Azul (€):</label>
-                <input
-                  type="number"
-                  id="margen-min"
-                  value={margenMin}
-                  onChange={e => setMargenMin(Number(e.target.value))}
-                  required
-                />
-                <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-                  Si el beneficio de un parte menos sus gastos es menor o igual a este valor, el semáforo será Rojo independientemente del rendimiento en metros.
-                </span>
-              </div>
-            )}
+            <div>
+              <label htmlFor="margen-min">Margen mínimo aceptable para Verde/Azul (€):</label>
+              <input
+                type="number"
+                id="margen-min"
+                value={margenMin}
+                onChange={e => setMargenMin(Number(e.target.value))}
+                required
+              />
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                Si el beneficio de un parte menos sus gastos es menor o igual a este valor, el semáforo será Rojo independientemente del rendimiento en {currentObra?.tipo === 'tarea' ? 'puntos' : 'metros'}.
+              </span>
+            </div>
 
             <button type="submit" className="primary" disabled={configSaving} style={{ marginTop: '0.5rem', alignSelf: 'flex-start' }}>
               {configSaving ? 'Guardando...' : 'Guardar Umbrales'}
@@ -1121,7 +1131,7 @@ export default function ConfigView() {
       )}
 
       {/* 5. TAB RECURSOS */}
-      {activeTab === 'recursos' && currentObra?.tipo !== 'tarea' && (
+      {activeTab === 'recursos' && (
         <div className="config-grid-recursos">
           {/* Formulario */}
           <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>

@@ -310,7 +310,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const d = new Date();
-      const fechaInicio = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+      const partesObra = partes.filter(p => p.obra_id === currentObra.id);
+      let fechaInicio = '';
+      if (partesObra.length > 0) {
+        const fechas = partesObra.map(p => p.fecha).sort();
+        fechaInicio = fechas[0];
+      } else {
+        fechaInicio = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().split('T')[0];
+      }
       const fechaFin = d.toISOString().split('T')[0];
       const isTarea = currentObra.tipo === 'tarea';
 
@@ -337,22 +344,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         : 0;
 
       let status: 'rojo' | 'verde' | 'azul' = 'rojo';
-      if (isTarea) {
-        if (avgCompliance < config.umbral_verde) {
-          status = 'rojo';
-        } else if (avgCompliance >= config.umbral_verde && avgCompliance < config.umbral_azul) {
-          status = 'verde';
-        } else {
-          status = 'azul';
-        }
+      if (avgCompliance < config.umbral_verde || totalMargin <= config.margen_minimo) {
+        status = 'rojo';
+      } else if (avgCompliance >= config.umbral_verde && avgCompliance < config.umbral_azul) {
+        status = 'verde';
       } else {
-        if (avgCompliance < config.umbral_verde || totalMargin <= config.margen_minimo) {
-          status = 'rojo';
-        } else if (avgCompliance >= config.umbral_verde && avgCompliance < config.umbral_azul) {
-          status = 'verde';
-        } else {
-          status = 'azul';
-        }
+        status = 'azul';
       }
 
       updateFavicon(status);
