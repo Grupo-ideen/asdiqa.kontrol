@@ -639,15 +639,13 @@ export default function PartesView() {
                         </li>
                       );
                     }
-                    const lineRendObj = linea.partida_rendimiento_objetivo ?? config?.rendimiento_default ?? 100;
-                    const lineTotalObj = parte.num_personas * lineRendObj;
-                    const pct = lineTotalObj > 0 ? (linea.metros_ejecutados / lineTotalObj) * 100 : 0;
+                    const lineRendObj = linea.partida_rendimiento_objetivo || config?.rendimiento_default || 100;
                     return (
                       <li key={linea.id}>
-                        <code>{linea.partida_codigo}</code> — {linea.metros_ejecutados} {linea.partida_unidad} 
-                        {!isJefeEquipo && (
+                        <code>{linea.partida_codigo}</code> — <strong>{linea.metros_ejecutados}</strong> {linea.partida_unidad} 
+                        {!isJefeEquipo && lineRendObj > 0 && (
                           <span style={{ color: 'var(--text-tertiary)', marginLeft: '0.5rem' }}>
-                            (Objetivo: {lineTotalObj} {linea.partida_unidad} | {pct.toFixed(0)}% cumpl.)
+                            (Rend. Obj: {lineRendObj} {linea.partida_unidad}/pers/día)
                           </span>
                         )}
                       </li>
@@ -711,45 +709,67 @@ export default function PartesView() {
                     </div>
                   </div>
                 ) : (
-                  <div
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
-                      gap: '1rem',
-                      backgroundColor: 'var(--bg-secondary)',
-                      padding: '0.75rem 1rem',
-                      borderRadius: 'var(--border-radius)',
-                      fontSize: '0.85rem',
-                      border: '1px solid var(--border-color)',
-                      marginTop: '0.25rem',
-                      marginBottom: '0.25rem'
-                    }}
-                  >
-                    <div>
-                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Ingresos Gen.</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.revenue)}
-                      </span>
-                    </div>
-                    <div>
-                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Gastos Real.</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.expenses)}
-                      </span>
-                    </div>
-                    <div>
-                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Margen Neto</span>
-                      <span style={{ fontWeight: 600, color: metrics.margin >= 0 ? '#4cbd6d' : 'var(--status-red)' }}>
-                        {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.margin)}
-                      </span>
-                    </div>
-                    <div>
-                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Cumplimiento</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {metrics.compliancePct.toFixed(1)}%
-                      </span>
-                    </div>
-                  </div>
+                  (() => {
+                    const totalMetros = parte.lineas?.reduce((sum, l) => sum + l.metros_ejecutados, 0) ?? 0;
+                    const rendMedio = parte.lineas && parte.lineas.length > 0
+                      ? (parte.lineas.reduce((sum, l) => sum + (l.partida_rendimiento_objetivo || (config?.rendimiento_default ?? 100)), 0) / parte.lineas.length)
+                      : (config?.rendimiento_default ?? 100);
+                    const objetivoGlobalDia = parte.num_personas * rendMedio;
+
+                    return (
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))',
+                          gap: '1rem',
+                          backgroundColor: 'var(--bg-secondary)',
+                          padding: '0.75rem 1rem',
+                          borderRadius: 'var(--border-radius)',
+                          fontSize: '0.85rem',
+                          border: '1px solid var(--border-color)',
+                          marginTop: '0.25rem',
+                          marginBottom: '0.25rem'
+                        }}
+                      >
+                        <div>
+                          <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Metros Ejec.</span>
+                          <span style={{ fontWeight: 650, color: 'var(--text-primary)', fontSize: '1rem' }}>
+                            {totalMetros.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 1 })} m
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Objetivo Día</span>
+                          <span style={{ fontWeight: 650, color: 'var(--text-primary)', fontSize: '1rem' }}>
+                            {objetivoGlobalDia.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 1 })} m
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Cumplimiento</span>
+                          <span style={{ fontWeight: 700, color: metrics.status === 'rojo' ? 'var(--status-red)' : metrics.status === 'verde' ? 'var(--status-green)' : 'var(--status-blue)', fontSize: '1rem' }}>
+                            {metrics.compliancePct.toFixed(1)}%
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Ingresos Gen.</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.revenue)}
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Gastos Real.</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                            {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.expenses)}
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Margen Neto</span>
+                          <span style={{ fontWeight: 600, color: metrics.margin >= 0 ? '#4cbd6d' : 'var(--status-red)' }}>
+                            {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.margin)}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()
                 )
               )}
 

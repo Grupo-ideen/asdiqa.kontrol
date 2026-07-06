@@ -772,7 +772,7 @@ export const Services = {
               partida_descripcion: pl.partida?.descripcion || '',
               partida_unidad: pl.partida?.unidad || 'm',
               partida_precio_unitario: Number(pl.partida?.precio_unitario || 0),
-              partida_rendimiento_objetivo: Number(pl.partida?.rendimiento_objetivo || 100),
+              partida_rendimiento_objetivo: Number(pl.partida?.rendimiento_objetivo ?? 0),
               partida_puntos: Number(pl.partida?.puntos || 0)
             })) || []
           })) as ParteTrabajo[];
@@ -796,7 +796,7 @@ export const Services = {
             partida_descripcion: partida?.descripcion || '',
             partida_unidad: partida?.unidad || 'm',
             partida_precio_unitario: partida?.precio_unitario || 0,
-            partida_rendimiento_objetivo: partida?.rendimiento_objetivo || 100,
+            partida_rendimiento_objetivo: partida?.rendimiento_objetivo ?? 0,
             partida_puntos: partida?.puntos || 0
           };
         });

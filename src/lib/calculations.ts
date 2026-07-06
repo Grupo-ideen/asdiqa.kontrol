@@ -40,19 +40,11 @@ export function calculateParteMetrics(
         const precioUnitario = linea.partida_precio_unitario ?? 0;
         const revenue = linea.metros_ejecutados * precioUnitario;
         totalRevenue += revenue;
-
-        // 2. Rendimiento objetivo de la línea: num_personas * rendimiento_objetivo_partida
-        const rendObjetivoPartida = linea.partida_rendimiento_objetivo ?? config.rendimiento_default;
-        const objetivoDia = parte.num_personas * rendObjetivoPartida;
-
-        // 3. % Cumplimiento de la línea
-        const compliance = objetivoDia > 0 ? (linea.metros_ejecutados / objetivoDia) * 100 : 0;
-        complianceSum += compliance;
       }
     });
   }
 
-  // Cumplimiento medio de las partidas del parte
+  // Cumplimiento medio de las partidas del parte (o global de la jornada)
   let averageCompliance = 0;
   if (isTarea) {
     const objetivoGlobalDia = parte.num_personas * (config.puntos_objetivo_dia ?? 10.00);
@@ -60,7 +52,14 @@ export function calculateParteMetrics(
     // En obras de tareas, ingresos = puntos conseguidos * precio del punto
     totalRevenue = totalPuntosAchieved * (config.precio_punto ?? 0);
   } else {
-    averageCompliance = numLineas > 0 ? complianceSum / numLineas : 0;
+    // Suma de metros de todas las partidas del parte
+    const totalMetrosParte = parte.lineas?.reduce((sum, l) => sum + l.metros_ejecutados, 0) ?? 0;
+    // Rendimiento objetivo medio de las partidas del parte
+    const rendMedioParte = parte.lineas && parte.lineas.length > 0
+      ? (parte.lineas.reduce((sum, l) => sum + (l.partida_rendimiento_objetivo || config.rendimiento_default), 0) / parte.lineas.length)
+      : config.rendimiento_default;
+    const objetivoGlobalDia = parte.num_personas * rendMedioParte;
+    averageCompliance = objetivoGlobalDia > 0 ? (totalMetrosParte / objetivoGlobalDia) * 100 : 0;
   }
 
   // Gastos imputados a la brigada en la fecha del parte
@@ -203,40 +202,44 @@ export function calculateBrigadePeriodMetrics(
 
   let totalMetros = 0;
   let complianceSum = 0;
-  let countLineas = 0;
+  let countPartes = 0;
   let totalPuntosAchieved = 0;
   let totalPuntosTarget = 0;
 
   partesFiltrados.forEach(p => {
     let dayPuntos = 0;
+    let dayMetros = 0;
     if (p.lineas) {
       p.lineas.forEach(l => {
         if (isTarea) {
-          const puntos = (l as any).partida_puntos ?? 0;
+          const puntos = Number((l as any).partida_puntos || (l as any).partida_precio_unitario || 0);
           dayPuntos += l.metros_ejecutados * puntos;
           totalMetros += l.metros_ejecutados;
         } else {
           const precioUnitario = l.partida_precio_unitario ?? 0;
           totalRevenue += l.metros_ejecutados * precioUnitario;
           totalMetros += l.metros_ejecutados;
-
-          const rendObjetivo = l.partida_rendimiento_objetivo ?? config.rendimiento_default;
-          const objetivoDia = p.num_personas * rendObjetivo;
-          const compliance = objetivoDia > 0 ? (l.metros_ejecutados / objetivoDia) * 100 : 0;
-          complianceSum += compliance;
-          countLineas++;
+          dayMetros += l.metros_ejecutados;
         }
       });
     }
     if (isTarea) {
       totalPuntosAchieved += dayPuntos;
       totalPuntosTarget += p.num_personas * (config.puntos_objetivo_dia ?? 10.00);
+    } else {
+      const rendMedio = p.lineas && p.lineas.length > 0
+        ? (p.lineas.reduce((sum, l) => sum + (l.partida_rendimiento_objetivo || config.rendimiento_default), 0) / p.lineas.length)
+        : config.rendimiento_default;
+      const objetivoDia = p.num_personas * rendMedio;
+      const compliance = objetivoDia > 0 ? (dayMetros / objetivoDia) * 100 : 0;
+      complianceSum += compliance;
+      countPartes++;
     }
   });
 
   const averageCompliance = isTarea
     ? (totalPuntosTarget > 0 ? (totalPuntosAchieved / totalPuntosTarget) * 100 : 0)
-    : (countLineas > 0 ? complianceSum / countLineas : 0);
+    : (countPartes > 0 ? complianceSum / countPartes : 0);
 
   if (isTarea) {
     totalRevenue = totalPuntosAchieved * (config.precio_punto ?? 0);

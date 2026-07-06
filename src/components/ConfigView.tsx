@@ -29,7 +29,7 @@ export default function ConfigView() {
   const [partidaUnidad, setPartidaUnidad] = useState(currentObra?.tipo === 'tarea' ? 'ud' : 'm');
   const [partidaPrecio, setPartidaPrecio] = useState(0);
   const [partidaMedicion, setPartidaMedicion] = useState(0);
-  const [partidaRend, setPartidaRend] = useState(100);
+  const [partidaRend, setPartidaRend] = useState<number | ''>('');
   const [csvError, setCsvError] = useState('');
   const [csvSuccess, setCsvSuccess] = useState('');
 
@@ -321,7 +321,7 @@ export default function ConfigView() {
         unidad: partidaUnidad,
         precio_unitario: currentObra?.tipo === 'tarea' ? 0 : Number(partidaPrecio),
         medicion_contrato: currentObra?.tipo === 'tarea' ? 0 : Number(partidaMedicion),
-        rendimiento_objetivo: currentObra?.tipo === 'tarea' ? 0 : Number(partidaRend),
+        rendimiento_objetivo: currentObra?.tipo === 'tarea' ? 0 : (partidaRend === '' ? 0 : Number(partidaRend)),
         puntos: currentObra?.tipo === 'tarea' ? Number(partidaPrecio) : 0,
         obra_id: currentObra?.id || ''
       };
@@ -344,7 +344,7 @@ export default function ConfigView() {
     setPartidaUnidad(p.unidad);
     setPartidaPrecio(currentObra?.tipo === 'tarea' ? (p.puntos || p.precio_unitario) : p.precio_unitario);
     setPartidaMedicion(p.medicion_contrato);
-    setPartidaRend(p.rendimiento_objetivo);
+    setPartidaRend(p.rendimiento_objetivo || '');
   };
 
   const handleDeletePartida = (id: string) => {
@@ -368,7 +368,7 @@ export default function ConfigView() {
     setPartidaUnidad(currentObra?.tipo === 'tarea' ? 'ud' : 'm');
     setPartidaPrecio(0);
     setPartidaMedicion(0);
-    setPartidaRend(100);
+    setPartidaRend('');
   };
 
   // Importar CSV
@@ -760,10 +760,10 @@ export default function ConfigView() {
                         type="number"
                         id="part-rend"
                         value={partidaRend}
-                        onChange={e => setPartidaRend(Number(e.target.value))}
-                        min="0.1"
-                        step="0.1"
-                        required
+                        onChange={e => setPartidaRend(e.target.value === '' ? '' : Number(e.target.value))}
+                        min="0"
+                        step="any"
+                        placeholder="Usa rendimiento de semáforo"
                       />
                     </div>
                   </div>

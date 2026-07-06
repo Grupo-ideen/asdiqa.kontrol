@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useApp } from '@/lib/AppContext';
-import { calculateBrigadePeriodMetrics } from '@/lib/calculations';
+import { calculateBrigadePeriodMetrics, calculateParteMetrics } from '@/lib/calculations';
 import PerformanceTrafficLight from './PerformanceTrafficLight';
 
 export default function DashboardView() {
@@ -108,41 +108,14 @@ export default function DashboardView() {
     .sort((a, b) => a.fecha.localeCompare(b.fecha));
 
   const chartDataPoints = partesFiltradosParaGrafico.map(p => {
-    // Calcular rendimiento y margen diario
-    let revenue = 0;
-    let complianceSum = 0;
-    let dayPuntosAchieved = 0;
-    const numLineas = p.lineas?.length || 0;
-
-    if (p.lineas && numLineas > 0) {
-      p.lineas.forEach(l => {
-        if (isTarea) {
-          dayPuntosAchieved += l.metros_ejecutados * ((l as any).partida_puntos ?? 0);
-        } else {
-          revenue += l.metros_ejecutados * (l.partida_precio_unitario ?? 0);
-          const rendObj = l.partida_rendimiento_objetivo ?? config?.rendimiento_default ?? 100;
-          const totalObj = p.num_personas * rendObj;
-          complianceSum += totalObj > 0 ? (l.metros_ejecutados / totalObj) * 100 : 0;
-        }
-      });
-    }
-
-    if (isTarea) {
-      revenue = dayPuntosAchieved * (config?.precio_punto ?? 0);
-    }
-
-    const avgLineCompliance = isTarea
-      ? (p.num_personas * (config?.puntos_objetivo_dia ?? 10.00) > 0 ? (dayPuntosAchieved / (p.num_personas * (config?.puntos_objetivo_dia ?? 10.00))) * 100 : 0)
-      : (numLineas > 0 ? complianceSum / numLineas : 0);
-    const dayGastos = gastos
-      .filter(g => g.fecha === p.fecha && g.brigada_id === p.brigada_id)
-      .reduce((sum, g) => sum + g.importe, 0);
-    const dayMargin = revenue - dayGastos;
+    const metrics = config 
+      ? calculateParteMetrics(p, gastos, config, recursos, currentObra?.tipo) 
+      : null;
 
     return {
       fecha: p.fecha,
-      compliance: avgLineCompliance,
-      margin: dayMargin,
+      compliance: metrics ? metrics.compliancePct : 0,
+      margin: metrics ? metrics.margin : 0,
       nombreBrigada: p.brigada_nombre
     };
   });
@@ -240,6 +213,9 @@ export default function DashboardView() {
           {/* Eje Y Izquierdo (Cumplimiento) */}
           <line x1={padding} y1={padding} x2={padding} y2={height - padding} stroke="var(--border-color)" strokeWidth="1.5" />
 
+          {/* Eje Y Derecho (Margen €) */}
+          <line x1={width - padding} y1={padding} x2={width - padding} y2={height - padding} stroke="var(--border-color)" strokeWidth="1.5" />
+
           {/* Línea objetivo del 100% */}
           {config && (
             <line
@@ -304,6 +280,11 @@ export default function DashboardView() {
           <text x={padding - 8} y={padding + 4} textAnchor="end" fontSize="9px" fill="var(--text-secondary)">{maxCompliance.toFixed(0)}%</text>
           <text x={padding - 8} y={getComplianceY(100) + 4} textAnchor="end" fontSize="9px" fill="var(--text-secondary)">100%</text>
           <text x={padding - 8} y={height - padding + 4} textAnchor="end" fontSize="9px" fill="var(--text-secondary)">0%</text>
+
+          {/* Etiquetas Eje Y Derecho (Margen €) */}
+          <text x={width - padding + 8} y={padding + 4} textAnchor="start" fontSize="9px" fill="var(--text-secondary)">{maxMargin.toFixed(0)}€</text>
+          <text x={width - padding + 8} y={getMarginY((maxMargin + minMargin) / 2) + 4} textAnchor="start" fontSize="9px" fill="var(--text-secondary)">{((maxMargin + minMargin) / 2).toFixed(0)}€</text>
+          <text x={width - padding + 8} y={height - padding + 4} textAnchor="start" fontSize="9px" fill="var(--text-secondary)">{minMargin.toFixed(0)}€</text>
         </svg>
       </div>
     );
