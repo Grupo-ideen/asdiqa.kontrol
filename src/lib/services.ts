@@ -382,6 +382,13 @@ export const Services = {
           if (config.precio_punto === undefined) {
             config.precio_punto = 0.00;
           }
+          // Compatibilidad: si aún no hay precios por categoría, se heredan del precio_punto legacy.
+          if (config.precio_punto_cable === undefined || config.precio_punto_cable === null) {
+            config.precio_punto_cable = config.precio_punto ?? 0.00;
+          }
+          if (config.precio_punto_obra_civil === undefined || config.precio_punto_obra_civil === null) {
+            config.precio_punto_obra_civil = config.precio_punto ?? 0.00;
+          }
           return config;
         }
         
@@ -393,7 +400,9 @@ export const Services = {
           umbral_azul: 110.00,
           margen_minimo: 0.00,
           puntos_objetivo_dia: defaultPuntos,
-          precio_punto: 0.00
+          precio_punto: 0.00,
+          precio_punto_cable: 0.00,
+          precio_punto_obra_civil: 0.00
         };
         const { data: created, error: err } = await supabase.from('config').insert(newConf).select().single();
         if (!err && created) return created as AppConfig;
@@ -412,7 +421,9 @@ export const Services = {
         umbral_azul: 110.00,
         margen_minimo: 0.00,
         puntos_objetivo_dia: defaultPuntos,
-        precio_punto: 0.00
+        precio_punto: 0.00,
+        precio_punto_cable: 0.00,
+        precio_punto_obra_civil: 0.00
       };
       db.configs.push(conf);
       saveLocalDB(db);
@@ -424,6 +435,14 @@ export const Services = {
       }
       if (conf.precio_punto === undefined) {
         conf.precio_punto = 0.00;
+        needsSave = true;
+      }
+      if (conf.precio_punto_cable === undefined || conf.precio_punto_cable === null) {
+        conf.precio_punto_cable = conf.precio_punto ?? 0.00;
+        needsSave = true;
+      }
+      if (conf.precio_punto_obra_civil === undefined || conf.precio_punto_obra_civil === null) {
+        conf.precio_punto_obra_civil = conf.precio_punto ?? 0.00;
         needsSave = true;
       }
       if (needsSave) {
@@ -464,6 +483,8 @@ export const Services = {
         margen_minimo: 0.00,
         puntos_objetivo_dia: defaultPuntos,
         precio_punto: 0.00,
+        precio_punto_cable: 0.00,
+        precio_punto_obra_civil: 0.00,
         ...newConfig
       } as AppConfig;
       db.configs.push(newC);
@@ -743,7 +764,7 @@ export const Services = {
             creado_por_user:usuarios(nombre),
             partes_lineas(
               *,
-              partida:partidas(codigo, descripcion, unidad, precio_unitario, rendimiento_objetivo, puntos)
+              partida:partidas(codigo, descripcion, unidad, precio_unitario, rendimiento_objetivo, puntos, categoria)
             )
           `)
           .eq('obra_id', obraId)
@@ -773,7 +794,8 @@ export const Services = {
               partida_unidad: pl.partida?.unidad || 'm',
               partida_precio_unitario: Number(pl.partida?.precio_unitario || 0),
               partida_rendimiento_objetivo: Number(pl.partida?.rendimiento_objetivo ?? 0),
-              partida_puntos: Number(pl.partida?.puntos || 0)
+              partida_puntos: Number(pl.partida?.puntos || 0),
+              partida_categoria: pl.partida?.categoria || undefined
             })) || []
           })) as ParteTrabajo[];
         }
@@ -797,7 +819,8 @@ export const Services = {
             partida_unidad: partida?.unidad || 'm',
             partida_precio_unitario: partida?.precio_unitario || 0,
             partida_rendimiento_objetivo: partida?.rendimiento_objetivo ?? 0,
-            partida_puntos: partida?.puntos || 0
+            partida_puntos: partida?.puntos || 0,
+            partida_categoria: partida?.categoria
           };
         });
 

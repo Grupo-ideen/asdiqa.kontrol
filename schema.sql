@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS obras (
 -- ALTER TABLE obras ADD COLUMN IF NOT EXISTS tipo TEXT NOT NULL DEFAULT 'metro' CHECK (tipo IN ('metro', 'tarea'));
 -- ALTER TABLE config ADD COLUMN IF NOT EXISTS precio_punto NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
 -- ALTER TABLE partes_lineas ADD COLUMN IF NOT EXISTS desglose TEXT;
+-- ALTER TABLE partidas ADD COLUMN IF NOT EXISTS categoria TEXT NOT NULL DEFAULT 'cable' CHECK (categoria IN ('cable', 'obra_civil'));
+-- ALTER TABLE config ADD COLUMN IF NOT EXISTS precio_punto_cable NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
+-- ALTER TABLE config ADD COLUMN IF NOT EXISTS precio_punto_obra_civil NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
 
 -- 1. Tabla de Usuarios y Roles
 CREATE TABLE IF NOT EXISTS usuarios (
@@ -44,6 +47,7 @@ CREATE TABLE IF NOT EXISTS partidas (
     medicion_contrato NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     rendimiento_objetivo NUMERIC(12, 2) NOT NULL DEFAULT 0.00, -- metros/persona/día
     puntos NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
+    categoria TEXT NOT NULL DEFAULT 'cable' CHECK (categoria IN ('cable', 'obra_civil')), -- clasificación en obras por tarea
     obra_id UUID NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
     creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (codigo, obra_id)
@@ -108,7 +112,9 @@ CREATE TABLE IF NOT EXISTS config (
     umbral_azul NUMERIC(5, 2) NOT NULL DEFAULT 110.00, -- porcentaje para superación (ej: 110%)
     margen_minimo NUMERIC(12, 2) NOT NULL DEFAULT 0.00, -- margen en euros
     puntos_objetivo_dia NUMERIC(12, 2) NOT NULL DEFAULT 27.00,
-    precio_punto NUMERIC(12, 2) NOT NULL DEFAULT 0.00
+    precio_punto NUMERIC(12, 2) NOT NULL DEFAULT 0.00, -- legacy: precio único por punto (fallback)
+    precio_punto_cable NUMERIC(12, 2) NOT NULL DEFAULT 0.00, -- € por punto para tareas de cable
+    precio_punto_obra_civil NUMERIC(12, 2) NOT NULL DEFAULT 0.00 -- € por punto para tareas de obra civil
 );
 
 -- Crear índices para optimizar búsquedas frecuentes

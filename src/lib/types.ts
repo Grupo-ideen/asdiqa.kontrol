@@ -2,6 +2,9 @@
 
 export type UserRole = 'admin' | 'jefe_equipo' | 'lector';
 
+// Clasificación de tareas en obras por puntos. Determina qué precio por punto se aplica.
+export type CategoriaTarea = 'cable' | 'obra_civil';
+
 export interface Obra {
   id: string;
   nombre: string;
@@ -33,6 +36,7 @@ export interface Partida {
   medicion_contrato: number;
   rendimiento_objetivo: number; // m/persona/dia
   puntos?: number;
+  categoria?: CategoriaTarea; // solo relevante en obras por tarea (cable / obra civil)
   obra_id: string;
   creado_en?: string;
 }
@@ -77,6 +81,7 @@ export interface ParteLinea {
   partida_precio_unitario?: number;
   partida_rendimiento_objetivo?: number;
   partida_puntos?: number;
+  partida_categoria?: CategoriaTarea;
 }
 
 export interface Gasto {
@@ -106,7 +111,9 @@ export interface AppConfig {
   umbral_azul: number; // % cumplimiento (ej: 110)
   margen_minimo: number; // euros (ej: 0)
   puntos_objetivo_dia?: number;
-  precio_punto?: number;
+  precio_punto?: number; // legacy: precio único por punto (fallback para las categorías)
+  precio_punto_cable?: number; // € por punto en tareas de cable
+  precio_punto_obra_civil?: number; // € por punto en tareas de obra civil
 }
 
 export interface Recurso {

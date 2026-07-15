@@ -1,4 +1,18 @@
-import { ParteTrabajo, Gasto, AppConfig, Recurso } from './types';
+import { ParteTrabajo, Gasto, AppConfig, Recurso, CategoriaTarea } from './types';
+
+/**
+ * Resuelve el precio por punto aplicable a una tarea según su categoría (cable u obra civil).
+ * Si la categoría no tiene precio propio configurado, cae al precio_punto legacy y, en su
+ * defecto, a 0. Esto mantiene la compatibilidad con obras creadas antes de la clasificación.
+ */
+export function precioPuntoCategoria(config: AppConfig, categoria?: CategoriaTarea): number {
+  const legacy = config.precio_punto ?? 0;
+  if (categoria === 'obra_civil') {
+    return config.precio_punto_obra_civil ?? legacy;
+  }
+  // 'cable' o sin clasificar se tratan como cable por defecto
+  return config.precio_punto_cable ?? legacy;
+}
 
 export interface PerformanceMetrics {
   revenue: number;
@@ -27,6 +41,7 @@ export function calculateParteMetrics(
   let totalRevenue = 0;
   let complianceSum = 0;
   let totalPuntosAchieved = 0;
+  let totalRevenueTarea = 0;
   const numLineas = parte.lineas?.length || 0;
 
   if (numLineas > 0 && parte.lineas) {
@@ -34,7 +49,10 @@ export function calculateParteMetrics(
       if (isTarea) {
         // En obras de tareas, 'metros_ejecutados' almacena la cantidad realizada.
         const puntosTarea = (linea as any).partida_puntos ?? 0;
-        totalPuntosAchieved += linea.metros_ejecutados * puntosTarea;
+        const puntosLinea = linea.metros_ejecutados * puntosTarea;
+        totalPuntosAchieved += puntosLinea;
+        // Los ingresos dependen del precio por punto de la categoría de la tarea (cable u obra civil).
+        totalRevenueTarea += puntosLinea * precioPuntoCategoria(config, linea.partida_categoria);
       } else {
         // 1. Beneficio (Ingreso) generado por la línea: metros * precio unitario
         const precioUnitario = linea.partida_precio_unitario ?? 0;
@@ -49,8 +67,8 @@ export function calculateParteMetrics(
   if (isTarea) {
     const objetivoGlobalDia = parte.num_personas * (config.puntos_objetivo_dia ?? 10.00);
     averageCompliance = objetivoGlobalDia > 0 ? (totalPuntosAchieved / objetivoGlobalDia) * 100 : 0;
-    // En obras de tareas, ingresos = puntos conseguidos * precio del punto
-    totalRevenue = totalPuntosAchieved * (config.precio_punto ?? 0);
+    // En obras de tareas, los ingresos ya se acumularon por línea con el precio de cada categoría.
+    totalRevenue = totalRevenueTarea;
   } else {
     // Suma de metros de todas las partidas del parte
     const totalMetrosParte = parte.lineas?.reduce((sum, l) => sum + l.metros_ejecutados, 0) ?? 0;
@@ -205,6 +223,7 @@ export function calculateBrigadePeriodMetrics(
   let countPartes = 0;
   let totalPuntosAchieved = 0;
   let totalPuntosTarget = 0;
+  let totalRevenueTarea = 0;
 
   partesFiltrados.forEach(p => {
     let dayPuntos = 0;
@@ -213,8 +232,10 @@ export function calculateBrigadePeriodMetrics(
       p.lineas.forEach(l => {
         if (isTarea) {
           const puntos = Number((l as any).partida_puntos || (l as any).partida_precio_unitario || 0);
-          dayPuntos += l.metros_ejecutados * puntos;
+          const puntosLinea = l.metros_ejecutados * puntos;
+          dayPuntos += puntosLinea;
           totalMetros += l.metros_ejecutados;
+          totalRevenueTarea += puntosLinea * precioPuntoCategoria(config, l.partida_categoria);
         } else {
           const precioUnitario = l.partida_precio_unitario ?? 0;
           totalRevenue += l.metros_ejecutados * precioUnitario;
@@ -242,7 +263,8 @@ export function calculateBrigadePeriodMetrics(
     : (countPartes > 0 ? complianceSum / countPartes : 0);
 
   if (isTarea) {
-    totalRevenue = totalPuntosAchieved * (config.precio_punto ?? 0);
+    // Ingresos acumulados por línea con el precio por punto de cada categoría (cable / obra civil).
+    totalRevenue = totalRevenueTarea;
   }
 
   const margin = totalRevenue - totalExpenses;

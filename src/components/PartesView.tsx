@@ -614,7 +614,8 @@ export default function PartesView() {
                     if (isTarea) {
                       const puntos = (linea as any).partida_puntos ?? 0;
                       const totalPuntos = linea.metros_ejecutados * puntos;
-                      
+                      const categoria = linea.partida_categoria === 'obra_civil' ? 'obra_civil' : 'cable';
+
                       let items: { descripcion: string; cantidad: number }[] = [];
                       if (linea.desglose) {
                         try {
@@ -624,8 +625,22 @@ export default function PartesView() {
                       
                       return (
                         <li key={linea.id} style={{ marginBottom: '0.5rem' }}>
-                          <div>
-                            <code>{linea.partida_codigo}</code> — {linea.partida_descripcion}: <strong>{linea.metros_ejecutados}</strong> ({puntos.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts/ud → <strong>{totalPuntos.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts</strong>)
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <span style={{
+                              fontSize: '0.65rem',
+                              fontWeight: 600,
+                              padding: '0.1rem 0.4rem',
+                              borderRadius: '999px',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.03em',
+                              backgroundColor: categoria === 'obra_civil' ? 'rgba(217, 119, 6, 0.12)' : 'rgba(59, 130, 246, 0.12)',
+                              color: categoria === 'obra_civil' ? '#d97706' : '#3b82f6'
+                            }}>
+                              {categoria === 'obra_civil' ? 'Obra civil' : 'Cable'}
+                            </span>
+                            <span>
+                              <code>{linea.partida_codigo}</code> — {linea.partida_descripcion}: <strong>{linea.metros_ejecutados}</strong> ({puntos.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts/ud → <strong>{totalPuntos.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts</strong>)
+                            </span>
                           </div>
                           {items.length > 0 && (
                             <ul style={{ listStyle: 'none', paddingLeft: '1.25rem', marginTop: '0.15rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.1rem', fontSize: '0.8rem' }}>
