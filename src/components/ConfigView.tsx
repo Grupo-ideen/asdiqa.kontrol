@@ -687,7 +687,7 @@ export default function ConfigView() {
                   id="umb-verde"
                   value={umbVerde}
                   onChange={e => setUmbVerde(Number(e.target.value))}
-                  min="50"
+                  min="0"
                   max="200"
                   required
                 />
