@@ -1,4 +1,4 @@
-import { ParteTrabajo, Gasto, AppConfig, Recurso, CategoriaTarea } from './types';
+import { ParteTrabajo, ParteLinea, Gasto, AppConfig, Recurso, CategoriaTarea } from './types';
 
 /**
  * Resuelve el precio por punto aplicable a una tarea según su categoría (cable u obra civil).
@@ -14,8 +14,43 @@ export function precioPuntoCategoria(config: AppConfig, categoria?: CategoriaTar
   return config.precio_punto_cable ?? legacy;
 }
 
+/** Totales económicos de una línea de parte en obras por tarea. */
+export interface TareaLineaTotals {
+  /** Puntos conseguidos por la línea (cantidad × puntos de la tarea). */
+  puntos: number;
+  /** Ingreso generado (puntos × precio por punto de su categoría). */
+  revenue: number;
+  /** Coste directo imputado (cantidad × coste de la tarea). */
+  coste: number;
+}
+
+/**
+ * Calcula puntos, ingreso y coste directo de una línea en obras por tarea, donde
+ * `metros_ejecutados` almacena la cantidad de tareas realizadas.
+ *
+ * El coste de tarea es opcional: las tareas sin coste configurado imputan 0 y el margen
+ * se comporta como antes de introducir el coste directo.
+ */
+export function tareaLineaTotals(linea: ParteLinea, config: AppConfig): TareaLineaTotals {
+  const cantidad = linea.metros_ejecutados;
+  // Compatibilidad: las tareas anteriores a la columna `puntos` guardaban sus puntos en `precio_unitario`.
+  const puntosPorTarea = linea.partida_puntos || linea.partida_precio_unitario || 0;
+  const puntos = cantidad * puntosPorTarea;
+
+  return {
+    puntos,
+    revenue: puntos * precioPuntoCategoria(config, linea.partida_categoria),
+    coste: cantidad * (linea.partida_coste_unitario ?? 0)
+  };
+}
+
 export interface PerformanceMetrics {
   revenue: number;
+  /** Coste directo de las tareas ejecutadas. Siempre 0 en obras por metro. */
+  taskExpenses: number;
+  /** Gastos manuales imputados + prorrateo de los recursos de la brigada. */
+  imputedExpenses: number;
+  /** Gasto total del parte: taskExpenses + imputedExpenses. */
   expenses: number;
   margin: number;
   compliancePct: number;
@@ -39,36 +74,28 @@ export function calculateParteMetrics(
   const isTarea = tipoObra === 'tarea';
 
   let totalRevenue = 0;
-  let complianceSum = 0;
   let totalPuntosAchieved = 0;
-  let totalRevenueTarea = 0;
-  const numLineas = parte.lineas?.length || 0;
+  // Coste directo de las tareas ejecutadas, imputado por cada unidad realizada.
+  let taskExpenses = 0;
 
-  if (numLineas > 0 && parte.lineas) {
-    parte.lineas.forEach(linea => {
-      if (isTarea) {
-        // En obras de tareas, 'metros_ejecutados' almacena la cantidad realizada.
-        const puntosTarea = (linea as any).partida_puntos ?? 0;
-        const puntosLinea = linea.metros_ejecutados * puntosTarea;
-        totalPuntosAchieved += puntosLinea;
-        // Los ingresos dependen del precio por punto de la categoría de la tarea (cable u obra civil).
-        totalRevenueTarea += puntosLinea * precioPuntoCategoria(config, linea.partida_categoria);
-      } else {
-        // 1. Beneficio (Ingreso) generado por la línea: metros * precio unitario
-        const precioUnitario = linea.partida_precio_unitario ?? 0;
-        const revenue = linea.metros_ejecutados * precioUnitario;
-        totalRevenue += revenue;
-      }
-    });
-  }
+  parte.lineas?.forEach(linea => {
+    if (isTarea) {
+      const { puntos, revenue, coste } = tareaLineaTotals(linea, config);
+      totalPuntosAchieved += puntos;
+      totalRevenue += revenue;
+      taskExpenses += coste;
+    } else {
+      // Beneficio (Ingreso) generado por la línea: metros * precio unitario
+      const precioUnitario = linea.partida_precio_unitario ?? 0;
+      totalRevenue += linea.metros_ejecutados * precioUnitario;
+    }
+  });
 
   // Cumplimiento medio de las partidas del parte (o global de la jornada)
   let averageCompliance = 0;
   if (isTarea) {
     const objetivoGlobalDia = parte.num_personas * (config.puntos_objetivo_dia ?? 10.00);
     averageCompliance = objetivoGlobalDia > 0 ? (totalPuntosAchieved / objetivoGlobalDia) * 100 : 0;
-    // En obras de tareas, los ingresos ya se acumularon por línea con el precio de cada categoría.
-    totalRevenue = totalRevenueTarea;
   } else {
     // Suma de metros de todas las partidas del parte
     const totalMetrosParte = parte.lineas?.reduce((sum, l) => sum + l.metros_ejecutados, 0) ?? 0;
@@ -107,7 +134,8 @@ export function calculateParteMetrics(
     return sum + (monthlyCost / 20); // Fijo 20 días laborables
   }, 0);
 
-  const totalExpenses = manualExpenses + resourceDailyExpenses;
+  const imputedExpenses = manualExpenses + resourceDailyExpenses;
+  const totalExpenses = imputedExpenses + taskExpenses;
 
   // Margen económico
   const margin = totalRevenue - totalExpenses;
@@ -129,6 +157,8 @@ export function calculateParteMetrics(
 
   return {
     revenue: totalRevenue,
+    taskExpenses,
+    imputedExpenses,
     expenses: totalExpenses,
     margin,
     compliancePct: averageCompliance,
@@ -147,6 +177,11 @@ export interface BrigadePeriodMetrics {
   numPartes: number;
   metrosAcumulados: number;
   revenue: number;
+  /** Coste directo de las tareas ejecutadas en el periodo. Siempre 0 en obras por metro. */
+  taskExpenses: number;
+  /** Gastos manuales imputados + prorrateo de los recursos de la brigada. */
+  imputedExpenses: number;
+  /** Gasto total del periodo: taskExpenses + imputedExpenses. */
   expenses: number;
   margin: number;
   averageCompliance: number;
@@ -176,16 +211,16 @@ export function calculateBrigadePeriodMetrics(
   });
 
   let totalRevenue = 0;
-  let totalExpenses = 0;
+  let imputedExpenses = 0;
 
   // 1. Sumar gastos manuales de tipo único dentro del rango del periodo
   const unicosPeriodo = gastos.filter(
-    g => g.brigada_id === brigadaId && 
+    g => g.brigada_id === brigadaId &&
          (!g.tipo_coste || g.tipo_coste === 'unico') &&
          (!fechaInicio || g.fecha >= fechaInicio) &&
          (!fechaFin || g.fecha <= fechaFin)
   );
-  totalExpenses = unicosPeriodo.reduce((sum, g) => sum + g.importe, 0);
+  imputedExpenses = unicosPeriodo.reduce((sum, g) => sum + g.importe, 0);
 
   // 2. Costes de recursos base mensuales
   const recursosBrigada = recursos.filter(r => r.brigada_id === brigadaId);
@@ -199,14 +234,14 @@ export function calculateBrigadePeriodMetrics(
     const yyyyMm = p.fecha.substring(0, 7);
 
     // Prorrateo de recursos del mes (fijo 20 días laborables)
-    totalExpenses += (resourceBaseCost / 20);
+    imputedExpenses += (resourceBaseCost / 20);
 
     // Prorrateo de gastos mensuales del mes (fijo 20 días laborables)
     const mensualesMes = gastos.filter(
       g => g.brigada_id === brigadaId && g.fecha.substring(0, 7) <= yyyyMm && g.tipo_coste === 'mensual'
     );
     mensualesMes.forEach(g => {
-      totalExpenses += (g.importe / 20);
+      imputedExpenses += (g.importe / 20);
     });
 
     // Gastos diarios imputados por jornada
@@ -214,7 +249,7 @@ export function calculateBrigadePeriodMetrics(
       g => g.brigada_id === brigadaId && g.fecha.startsWith(yyyyMm) && g.tipo_coste === 'diario'
     );
     diariosMes.forEach(g => {
-      totalExpenses += g.importe;
+      imputedExpenses += g.importe;
     });
   });
 
@@ -223,23 +258,23 @@ export function calculateBrigadePeriodMetrics(
   let countPartes = 0;
   let totalPuntosAchieved = 0;
   let totalPuntosTarget = 0;
-  let totalRevenueTarea = 0;
+  // Coste directo de las tareas ejecutadas, imputado por cada unidad realizada.
+  let taskExpenses = 0;
 
   partesFiltrados.forEach(p => {
     let dayPuntos = 0;
     let dayMetros = 0;
     if (p.lineas) {
       p.lineas.forEach(l => {
+        totalMetros += l.metros_ejecutados;
         if (isTarea) {
-          const puntos = Number((l as any).partida_puntos || (l as any).partida_precio_unitario || 0);
-          const puntosLinea = l.metros_ejecutados * puntos;
-          dayPuntos += puntosLinea;
-          totalMetros += l.metros_ejecutados;
-          totalRevenueTarea += puntosLinea * precioPuntoCategoria(config, l.partida_categoria);
+          const { puntos, revenue, coste } = tareaLineaTotals(l, config);
+          dayPuntos += puntos;
+          totalRevenue += revenue;
+          taskExpenses += coste;
         } else {
           const precioUnitario = l.partida_precio_unitario ?? 0;
           totalRevenue += l.metros_ejecutados * precioUnitario;
-          totalMetros += l.metros_ejecutados;
           dayMetros += l.metros_ejecutados;
         }
       });
@@ -262,11 +297,7 @@ export function calculateBrigadePeriodMetrics(
     ? (totalPuntosTarget > 0 ? (totalPuntosAchieved / totalPuntosTarget) * 100 : 0)
     : (countPartes > 0 ? complianceSum / countPartes : 0);
 
-  if (isTarea) {
-    // Ingresos acumulados por línea con el precio por punto de cada categoría (cable / obra civil).
-    totalRevenue = totalRevenueTarea;
-  }
-
+  const totalExpenses = imputedExpenses + taskExpenses;
   const margin = totalRevenue - totalExpenses;
 
   // Lógica del semáforo global
@@ -286,6 +317,8 @@ export function calculateBrigadePeriodMetrics(
     numPartes: partesFiltrados.length,
     metrosAcumulados: totalMetros,
     revenue: totalRevenue,
+    taskExpenses,
+    imputedExpenses,
     expenses: totalExpenses,
     margin,
     averageCompliance,

@@ -3,10 +3,14 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '@/lib/AppContext';
 import { Services } from '@/lib/services';
+import { precioPuntoCategoria } from '@/lib/calculations';
 import { Partida, Brigada, Usuario, Recurso, Obra, CategoriaTarea } from '@/lib/types';
 
 // Función auxiliar externa para evitar errores de pureza en el render de React
 const generateUniqueId = (prefix: string) => `${prefix}-${Date.now()}`;
+
+const currencyFormatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
+const formatCurrency = (value: number) => currencyFormatter.format(value);
 
 export default function ConfigView() {
   const { config, partidas, brigadas, usuarios, recursos, refreshAll, showToast, currentObra, obras, showConfirm } = useApp();
@@ -32,6 +36,7 @@ export default function ConfigView() {
   const [partidaMedicion, setPartidaMedicion] = useState(0);
   const [partidaRend, setPartidaRend] = useState<number | ''>('');
   const [partidaCategoria, setPartidaCategoria] = useState<CategoriaTarea>('cable');
+  const [partidaCoste, setPartidaCoste] = useState(0);
   const [csvError, setCsvError] = useState('');
   const [csvSuccess, setCsvSuccess] = useState('');
 
@@ -331,6 +336,7 @@ export default function ConfigView() {
         rendimiento_objetivo: currentObra?.tipo === 'tarea' ? 0 : (partidaRend === '' ? 0 : Number(partidaRend)),
         puntos: currentObra?.tipo === 'tarea' ? Number(partidaPrecio) : 0,
         categoria: currentObra?.tipo === 'tarea' ? partidaCategoria : undefined,
+        coste_unitario: currentObra?.tipo === 'tarea' ? Number(partidaCoste) || 0 : 0,
         obra_id: currentObra?.id || ''
       };
 
@@ -354,6 +360,7 @@ export default function ConfigView() {
     setPartidaMedicion(p.medicion_contrato);
     setPartidaRend(p.rendimiento_objetivo || '');
     setPartidaCategoria(p.categoria || 'cable');
+    setPartidaCoste(p.coste_unitario || 0);
   };
 
   const handleDeletePartida = (id: string) => {
@@ -379,6 +386,7 @@ export default function ConfigView() {
     setPartidaMedicion(0);
     setPartidaRend('');
     setPartidaCategoria('cable');
+    setPartidaCoste(0);
   };
 
   // Importar CSV
@@ -438,6 +446,8 @@ export default function ConfigView() {
             rendimiento_objetivo: isTarea ? 0 : (Number(rowData.rendimiento_objetivo) || 100),
             puntos: isTarea ? (Number(rowData.puntos) || 0) : 0,
             categoria: isTarea ? categoria : undefined,
+            // Coste opcional en el CSV: sin columna o vacío significa tarea sin coste.
+            coste_unitario: isTarea ? (Number(rowData.coste) || 0) : 0,
             obra_id: currentObra?.id || ''
           });
         }
@@ -779,21 +789,46 @@ export default function ConfigView() {
                   </div>
                 </div>
                 {currentObra?.tipo === 'tarea' && (
-                  <div>
-                    <label htmlFor="part-categoria">Clasificación de la tarea:</label>
-                    <select
-                      id="part-categoria"
-                      value={partidaCategoria}
-                      onChange={e => setPartidaCategoria(e.target.value as CategoriaTarea)}
-                      required
-                    >
-                      <option value="cable">Cable</option>
-                      <option value="obra_civil">Obra civil</option>
-                    </select>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-                      Determina el precio por punto aplicado (configurable en Semáforo y Umbrales).
-                    </span>
-                  </div>
+                  <>
+                    <div>
+                      <label htmlFor="part-categoria">Clasificación de la tarea:</label>
+                      <select
+                        id="part-categoria"
+                        value={partidaCategoria}
+                        onChange={e => setPartidaCategoria(e.target.value as CategoriaTarea)}
+                        required
+                      >
+                        <option value="cable">Cable</option>
+                        <option value="obra_civil">Obra civil</option>
+                      </select>
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                        Determina el precio por punto aplicado (configurable en Semáforo y Umbrales).
+                      </span>
+                    </div>
+                    <div>
+                      <label htmlFor="part-coste">Gasto por tarea (€) — opcional:</label>
+                      <input
+                        type="number"
+                        id="part-coste"
+                        value={partidaCoste}
+                        onChange={e => setPartidaCoste(Number(e.target.value))}
+                        step="any"
+                        min="0"
+                        placeholder="0"
+                        aria-describedby="part-coste-help"
+                      />
+                      <span id="part-coste-help" style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                        Coste que asume la obra cada vez que se realiza la tarea. Se imputa como gasto por cada unidad ejecutada y se resta del margen. Déjalo a 0 si la tarea no tiene coste.
+                        {partidaPrecio > 0 && partidaCoste > 0 && config && (
+                          <>
+                            {' '}Ahora: <strong>{formatCurrency(Number(partidaPrecio) * precioPuntoCategoria(config, partidaCategoria))}</strong> de ingreso
+                            {' '}− <strong>{formatCurrency(Number(partidaCoste))}</strong> de gasto
+                            {' '}= <strong>{formatCurrency(Number(partidaPrecio) * precioPuntoCategoria(config, partidaCategoria) - Number(partidaCoste))}</strong> por unidad.
+                          </>
+                        )}
+                      </span>
+                    </div>
+                  </>
                 )}
                 {currentObra?.tipo !== 'tarea' && (
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
@@ -841,14 +876,14 @@ export default function ConfigView() {
               <div>
                 <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Importación Masiva (CSV)</h2>
                 <p style={{ fontSize: '0.85rem' }}>
-                  {currentObra?.tipo === 'tarea' 
-                    ? 'Sube un archivo CSV (.csv) con las tareas de obra y sus puntos.' 
+                  {currentObra?.tipo === 'tarea'
+                    ? 'Sube un archivo CSV (.csv) con las tareas de obra y sus puntos. Las columnas categoria y coste son opcionales.'
                     : 'Sube un archivo de Excel exportado a CSV (.csv) con las partidas del presupuesto.'}
                 </p>
                 {currentObra?.tipo === 'tarea' ? (
                   <div style={{ fontSize: '0.75rem', backgroundColor: 'var(--bg-tertiary)', padding: '0.75rem', borderRadius: '4px', fontFamily: 'monospace', marginBottom: '1rem', whiteSpace: 'pre-wrap' }}>
-                    codigo,descripcion,unidad,puntos,categoria
-                    T-01,&quot;Fusionado de fibra&quot;,ud,2.5,cable
+                    codigo,descripcion,unidad,puntos,categoria,coste
+                    T-01,&quot;Fusionado de fibra&quot;,ud,2.5,cable,12.50
                   </div>
                 ) : (
                   <div style={{ fontSize: '0.75rem', backgroundColor: 'var(--bg-tertiary)', padding: '0.75rem', borderRadius: '4px', fontFamily: 'monospace', marginBottom: '1rem', whiteSpace: 'pre-wrap' }}>
@@ -893,6 +928,7 @@ export default function ConfigView() {
                     <>
                       <th>Clasificación</th>
                       <th>Puntos</th>
+                      <th>Gasto/ud</th>
                     </>
                   ) : (
                     <>
@@ -927,6 +963,9 @@ export default function ConfigView() {
                           </span>
                         </td>
                         <td style={{ fontWeight: 600, color: 'var(--status-blue)' }}>{p.puntos || p.precio_unitario} pts</td>
+                        <td style={{ color: p.coste_unitario ? 'var(--text-primary)' : 'var(--text-tertiary)' }}>
+                          {p.coste_unitario ? formatCurrency(p.coste_unitario) : '—'}
+                        </td>
                       </>
                     ) : (
                       <>
@@ -956,7 +995,7 @@ export default function ConfigView() {
                 ))}
                 {partidas.length === 0 && (
                   <tr>
-                    <td colSpan={currentObra?.tipo === 'tarea' ? 6 : 7} style={{ textAlign: 'center', color: 'var(--text-tertiary)' }}>
+                    <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-tertiary)' }}>
                       {currentObra?.tipo === 'tarea' 
                         ? 'No hay tareas registradas. Créalas arriba o importa un CSV.' 
                         : 'No hay partidas registradas. Créalas arriba o importa un CSV.'}

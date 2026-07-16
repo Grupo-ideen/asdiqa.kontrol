@@ -764,7 +764,7 @@ export const Services = {
             creado_por_user:usuarios(nombre),
             partes_lineas(
               *,
-              partida:partidas(codigo, descripcion, unidad, precio_unitario, rendimiento_objetivo, puntos, categoria)
+              partida:partidas(codigo, descripcion, unidad, precio_unitario, rendimiento_objetivo, puntos, categoria, coste_unitario)
             )
           `)
           .eq('obra_id', obraId)
@@ -795,7 +795,8 @@ export const Services = {
               partida_precio_unitario: Number(pl.partida?.precio_unitario || 0),
               partida_rendimiento_objetivo: Number(pl.partida?.rendimiento_objetivo ?? 0),
               partida_puntos: Number(pl.partida?.puntos || 0),
-              partida_categoria: pl.partida?.categoria || undefined
+              partida_categoria: pl.partida?.categoria || undefined,
+              partida_coste_unitario: Number(pl.partida?.coste_unitario || 0)
             })) || []
           })) as ParteTrabajo[];
         }
@@ -820,7 +821,8 @@ export const Services = {
             partida_precio_unitario: partida?.precio_unitario || 0,
             partida_rendimiento_objetivo: partida?.rendimiento_objetivo ?? 0,
             partida_puntos: partida?.puntos || 0,
-            partida_categoria: partida?.categoria
+            partida_categoria: partida?.categoria,
+            partida_coste_unitario: partida?.coste_unitario || 0
           };
         });
 

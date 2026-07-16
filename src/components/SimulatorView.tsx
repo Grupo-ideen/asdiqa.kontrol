@@ -31,12 +31,20 @@ export default function SimulatorView() {
         : Number(partida.precio_unitario))
     : 0;
 
-  // Metros para ser rentable (Break-even): Coste diario / Precio unitario
-  const breakEvenMeters = precioUnitario > 0 ? costeDiario / precioUnitario : 0;
+  // Coste directo que asume la obra cada vez que se realiza la tarea (opcional, sólo obras por tarea).
+  const costeUnitarioTarea = partida && isTarea ? Number(partida.coste_unitario || 0) : 0;
+  // Margen de contribución: lo que aporta cada unidad para cubrir el coste diario del recurso.
+  const margenUnitario = precioUnitario - costeUnitarioTarea;
+  // Si cada unidad cuesta más de lo que ingresa, ninguna producción cubre el coste del recurso.
+  const tareaViable = margenUnitario > 0;
+
+  // Metros para ser rentable (Break-even): Coste diario / Margen de contribución por unidad
+  const breakEvenMeters = tareaViable ? costeDiario / margenUnitario : 0;
 
   // Simulación interactiva
   const ingresoSimulado = simulatedMeters * precioUnitario;
-  const margenSimulado = ingresoSimulado - costeDiario;
+  const costeTareasSimulado = simulatedMeters * costeUnitarioTarea;
+  const margenSimulado = ingresoSimulado - costeTareasSimulado - costeDiario;
   const esRentable = margenSimulado >= 0;
 
   // Formateadores
@@ -164,21 +172,38 @@ export default function SimulatorView() {
                 <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
                   <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Umbral de Rentabilidad</h2>
                   <p style={{ fontSize: '0.95rem', lineHeight: '1.45', margin: 0 }}>
-                    Para que <strong>{recurso.nombre}</strong> cubra su coste de <strong>{currencyFormatter.format(costeDiario)}/día</strong> trabajando la partida <strong>{partida.codigo}</strong> (precio contratado de <strong>{currencyFormatter.format(precioUnitario)}/{partida.unidad}</strong>), debe producir como mínimo:
+                    Para que <strong>{recurso.nombre}</strong> cubra su coste de <strong>{currencyFormatter.format(costeDiario)}/día</strong> trabajando la partida <strong>{partida.codigo}</strong> (precio contratado de <strong>{currencyFormatter.format(precioUnitario)}/{partida.unidad}</strong>
+                    {costeUnitarioTarea > 0 && (
+                      <> menos <strong>{currencyFormatter.format(costeUnitarioTarea)}/{partida.unidad}</strong> de coste de la tarea</>
+                    )}
+                    ), debe producir como mínimo:
                   </p>
-                  
-                  <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginTop: '1rem', marginBottom: '0.5rem' }}>
-                    <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>
-                      {decimalFormatter.format(breakEvenMeters)}
-                    </span>
-                    <span style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                      {partida.unidad}/día
-                    </span>
-                  </div>
-                  
-                  <p style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', margin: 0 }}>
-                    Cualquier rendimiento diario inferior a este umbral generará pérdidas netas para la obra en este recurso.
-                  </p>
+
+                  {tareaViable ? (
+                    <>
+                      <div style={{ display: 'flex', alignItems: 'baseline', gap: '0.5rem', marginTop: '1rem', marginBottom: '0.5rem' }}>
+                        <span style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--text-primary)', letterSpacing: '-0.03em' }}>
+                          {decimalFormatter.format(breakEvenMeters)}
+                        </span>
+                        <span style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                          {partida.unidad}/día
+                        </span>
+                      </div>
+
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)', margin: 0 }}>
+                        Cualquier rendimiento diario inferior a este umbral generará pérdidas netas para la obra en este recurso.
+                        {costeUnitarioTarea > 0 && (
+                          <> Cada unidad aporta <strong>{currencyFormatter.format(margenUnitario)}</strong> netos para cubrir el coste del recurso.</>
+                        )}
+                      </p>
+                    </>
+                  ) : (
+                    <p style={{ fontSize: '0.9rem', color: 'var(--status-red)', fontWeight: 600, margin: '1rem 0 0' }}>
+                      {precioUnitario > 0
+                        ? `Esta tarea no es rentable a ningún ritmo: cada ${partida.unidad} cuesta ${currencyFormatter.format(costeUnitarioTarea)} y sólo ingresa ${currencyFormatter.format(precioUnitario)}. Revisa el gasto por tarea o el precio por punto.`
+                        : 'Esta partida no tiene precio configurado, por lo que no genera ingresos con los que cubrir el coste del recurso.'}
+                    </p>
+                  )}
                 </div>
 
                 {/* Simulador Interactivo */}
@@ -214,11 +239,17 @@ export default function SimulatorView() {
                   </div>
 
                   {/* Resultados detallados */}
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1rem', borderTop: '1px dashed currentColor', paddingTop: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: `repeat(${costeUnitarioTarea > 0 ? 4 : 3}, 1fr)`, gap: '1rem', borderTop: '1px dashed currentColor', paddingTop: '1rem' }}>
                     <div>
                       <span style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', opacity: 0.8 }}>Ingreso Generado</span>
                       <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{currencyFormatter.format(ingresoSimulado)}</span>
                     </div>
+                    {costeUnitarioTarea > 0 && (
+                      <div>
+                        <span style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', opacity: 0.8 }}>Coste Tareas</span>
+                        <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{currencyFormatter.format(costeTareasSimulado)}</span>
+                      </div>
+                    )}
                     <div>
                       <span style={{ display: 'block', fontSize: '0.75rem', textTransform: 'uppercase', opacity: 0.8 }}>Coste Diario</span>
                       <span style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)' }}>{currencyFormatter.format(costeDiario)}</span>
@@ -244,7 +275,11 @@ export default function SimulatorView() {
                         <svg width="14" height="14" viewBox="0 0 10 10" fill="currentColor">
                           <circle cx="5" cy="5" r="4.5" />
                         </svg>
-                        <span>Pérdidas: Faltan {decimalFormatter.format(breakEvenMeters - simulatedMeters)} {partida.unidad}/día para cubrir costes.</span>
+                        <span>
+                          {tareaViable
+                            ? `Pérdidas: Faltan ${decimalFormatter.format(breakEvenMeters - simulatedMeters)} ${partida.unidad}/día para cubrir costes.`
+                            : `Pérdidas: producir más ${partida.unidad} aumenta la pérdida, porque cada unidad cuesta más de lo que ingresa.`}
+                        </span>
                       </>
                     )}
                   </div>

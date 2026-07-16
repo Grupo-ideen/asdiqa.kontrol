@@ -37,6 +37,7 @@ export interface Partida {
   rendimiento_objetivo: number; // m/persona/dia
   puntos?: number;
   categoria?: CategoriaTarea; // solo relevante en obras por tarea (cable / obra civil)
+  coste_unitario?: number; // € de coste directo por cada tarea realizada (0 = sin coste)
   obra_id: string;
   creado_en?: string;
 }
@@ -82,6 +83,7 @@ export interface ParteLinea {
   partida_rendimiento_objetivo?: number;
   partida_puntos?: number;
   partida_categoria?: CategoriaTarea;
+  partida_coste_unitario?: number;
 }
 
 export interface Gasto {

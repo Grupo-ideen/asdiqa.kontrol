@@ -615,6 +615,7 @@ export default function PartesView() {
                       const puntos = (linea as any).partida_puntos ?? 0;
                       const totalPuntos = linea.metros_ejecutados * puntos;
                       const categoria = linea.partida_categoria === 'obra_civil' ? 'obra_civil' : 'cable';
+                      const costeLinea = linea.metros_ejecutados * (linea.partida_coste_unitario ?? 0);
 
                       let items: { descripcion: string; cantidad: number }[] = [];
                       if (linea.desglose) {
@@ -641,6 +642,14 @@ export default function PartesView() {
                             <span>
                               <code>{linea.partida_codigo}</code> — {linea.partida_descripcion}: <strong>{linea.metros_ejecutados}</strong> ({puntos.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts/ud → <strong>{totalPuntos.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts</strong>)
                             </span>
+                            {!isJefeEquipo && costeLinea > 0 && (
+                              <span
+                                style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem' }}
+                                title={`Coste de la tarea: ${new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(linea.partida_coste_unitario ?? 0)} por unidad`}
+                              >
+                                · {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(costeLinea)} de gasto
+                              </span>
+                            )}
                           </div>
                           {items.length > 0 && (
                             <ul style={{ listStyle: 'none', paddingLeft: '1.25rem', marginTop: '0.15rem', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '0.1rem', fontSize: '0.8rem' }}>
@@ -710,12 +719,30 @@ export default function PartesView() {
                         {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.revenue)}
                       </span>
                     </div>
-                    <div>
-                      <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Gastos Real.</span>
-                      <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.expenses)}
-                      </span>
-                    </div>
+                    {/* El coste de tareas es opcional: sólo se desglosa cuando alguna tarea del parte lo tiene configurado. */}
+                    {metrics.taskExpenses > 0 ? (
+                      <>
+                        <div>
+                          <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Gastos Tareas</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }} title="Coste directo de las tareas realizadas en este parte">
+                            {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.taskExpenses)}
+                          </span>
+                        </div>
+                        <div>
+                          <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Gastos Imput.</span>
+                          <span style={{ fontWeight: 600, color: 'var(--text-primary)' }} title="Gastos registrados y prorrateo de recursos de la brigada">
+                            {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.imputedExpenses)}
+                          </span>
+                        </div>
+                      </>
+                    ) : (
+                      <div>
+                        <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Gastos Real.</span>
+                        <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                          {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(metrics.expenses)}
+                        </span>
+                      </div>
+                    )}
                     <div>
                       <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Margen Neto</span>
                       <span style={{ fontWeight: 600, color: metrics.margin >= 0 ? '#4cbd6d' : 'var(--status-red)' }}>

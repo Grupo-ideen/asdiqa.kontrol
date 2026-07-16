@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS obras (
 -- ALTER TABLE partidas ADD COLUMN IF NOT EXISTS categoria TEXT NOT NULL DEFAULT 'cable' CHECK (categoria IN ('cable', 'obra_civil'));
 -- ALTER TABLE config ADD COLUMN IF NOT EXISTS precio_punto_cable NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
 -- ALTER TABLE config ADD COLUMN IF NOT EXISTS precio_punto_obra_civil NUMERIC(12, 2) NOT NULL DEFAULT 0.00;
+-- ALTER TABLE partidas ADD COLUMN IF NOT EXISTS coste_unitario NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (coste_unitario >= 0);
 
 -- 1. Tabla de Usuarios y Roles
 CREATE TABLE IF NOT EXISTS usuarios (
@@ -48,6 +49,7 @@ CREATE TABLE IF NOT EXISTS partidas (
     rendimiento_objetivo NUMERIC(12, 2) NOT NULL DEFAULT 0.00, -- metros/persona/día
     puntos NUMERIC(12, 2) NOT NULL DEFAULT 0.00,
     categoria TEXT NOT NULL DEFAULT 'cable' CHECK (categoria IN ('cable', 'obra_civil')), -- clasificación en obras por tarea
+    coste_unitario NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (coste_unitario >= 0), -- € de coste directo por tarea realizada
     obra_id UUID NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
     creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (codigo, obra_id)

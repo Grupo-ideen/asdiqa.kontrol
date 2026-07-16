@@ -57,6 +57,8 @@ export default function DashboardView() {
           numPartes: 0,
           metrosAcumulados: 0,
           revenue: 0,
+          taskExpenses: 0,
+          imputedExpenses: 0,
           expenses: 0,
           margin: 0,
           averageCompliance: 0,
@@ -68,6 +70,9 @@ export default function DashboardView() {
   const totalMetros = brigadeMetricsList.reduce((sum, item) => sum + item.metrosAcumulados, 0);
   const totalRevenue = brigadeMetricsList.reduce((sum, item) => sum + item.revenue, 0);
   const totalExpenses = brigadeMetricsList.reduce((sum, item) => sum + item.expenses, 0);
+  const totalTaskExpenses = brigadeMetricsList.reduce((sum, item) => sum + item.taskExpenses, 0);
+  // El coste de tarea es opcional: sin tareas con coste, el desglose no aporta nada y se omite.
+  const showTaskExpenses = totalTaskExpenses > 0;
   const totalMargin = totalRevenue - totalExpenses;
   const avgCompliance = brigadeMetricsList.length > 0 
     ? brigadeMetricsList.reduce((sum, item) => sum + item.averageCompliance, 0) / brigadeMetricsList.length 
@@ -419,6 +424,15 @@ export default function DashboardView() {
           </h2>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
             Ingresos: {totalRevenue.toFixed(0)}€ | Gastos: {totalExpenses.toFixed(0)}€
+            {/* El coste de tareas es opcional: sólo se desglosa si alguna tarea lo tiene configurado. */}
+            {totalTaskExpenses > 0 && (
+              <>
+                <br />
+                <span title="Parte de los gastos que corresponde al coste directo de las tareas realizadas">
+                  De los cuales, tareas: {totalTaskExpenses.toFixed(0)}€
+                </span>
+              </>
+            )}
           </span>
         </div>
 
@@ -458,7 +472,14 @@ export default function DashboardView() {
               <th style={{ textAlign: 'right' }}>{isTarea ? 'Tareas Realizadas' : 'Metros Acum.'}</th>
               {isTarea && <th style={{ textAlign: 'right' }}>Puntos Cons.</th>}
               <th style={{ textAlign: 'right' }}>Ingresos Gen.</th>
-              <th style={{ textAlign: 'right' }}>Gastos Real.</th>
+              {showTaskExpenses ? (
+                <>
+                  <th style={{ textAlign: 'right' }} title="Coste directo de las tareas realizadas">Gastos Tareas</th>
+                  <th style={{ textAlign: 'right' }} title="Gastos registrados y prorrateo de recursos de la brigada">Gastos Imput.</th>
+                </>
+              ) : (
+                <th style={{ textAlign: 'right' }}>Gastos Real.</th>
+              )}
               <th style={{ textAlign: 'right' }}>Margen Neto</th>
               <th style={{ textAlign: 'right' }}>% Cumpl. Medio</th>
               <th style={{ textAlign: 'center' }}>Semáforo</th>
@@ -469,6 +490,8 @@ export default function DashboardView() {
               const roundedCompliance = item.averageCompliance.toFixed(1);
               const formattedRevenue = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(item.revenue);
               const formattedExpenses = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(item.expenses);
+              const formattedTaskExpenses = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(item.taskExpenses);
+              const formattedImputedExpenses = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(item.imputedExpenses);
               const formattedMargin = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(item.margin);
 
               let pointsAchieved = 0;
@@ -492,7 +515,14 @@ export default function DashboardView() {
                   </td>
                   {isTarea && <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--status-blue)' }}>{pointsAchieved.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts</td>}
                   <td style={{ textAlign: 'right' }}>{formattedRevenue}</td>
-                  <td style={{ textAlign: 'right' }}>{formattedExpenses}</td>
+                  {showTaskExpenses ? (
+                    <>
+                      <td style={{ textAlign: 'right' }}>{formattedTaskExpenses}</td>
+                      <td style={{ textAlign: 'right' }}>{formattedImputedExpenses}</td>
+                    </>
+                  ) : (
+                    <td style={{ textAlign: 'right' }}>{formattedExpenses}</td>
+                  )}
                   <td style={{
                     textAlign: 'right',
                     fontWeight: 600,
@@ -513,7 +543,7 @@ export default function DashboardView() {
             })}
             {brigadeMetricsList.length === 0 && (
               <tr>
-                <td colSpan={isTarea ? 10 : 9} style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: '2rem' }}>
+                <td colSpan={(isTarea ? 10 : 9) + (showTaskExpenses ? 1 : 0)} style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: '2rem' }}>
                   No hay brigadas registradas en el sistema.
                 </td>
               </tr>
