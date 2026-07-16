@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useApp } from '@/lib/AppContext';
 import { precioPuntoCategoria } from '@/lib/calculations';
+import { formatPuntos } from '@/lib/format';
 
 export default function SimulatorView() {
   const { recursos, partidas, config, currentObra } = useApp();
@@ -117,7 +118,7 @@ export default function SimulatorView() {
                 <option value="">Selecciona partida...</option>
                 {partidas.map(p => (
                   <option key={p.id} value={p.id}>
-                    {p.codigo} — {p.descripcion.substring(0, 50)}... {isTarea ? `(${Math.round(p.puntos || 0)} pts ${p.categoria === 'obra_civil' ? 'obra civil' : 'cable'} / eq. ${(Number(p.puntos || 0) * (config ? precioPuntoCategoria(config, p.categoria) : 0)).toFixed(2)}€)` : `(${p.precio_unitario}€/${p.unidad})`}
+                    {p.codigo} — {p.descripcion.substring(0, 50)}... {isTarea ? `(${formatPuntos(Number(p.puntos || 0))} pts ${p.categoria === 'obra_civil' ? 'obra civil' : 'cable'} / eq. ${(Number(p.puntos || 0) * (config ? precioPuntoCategoria(config, p.categoria) : 0)).toFixed(2)}€)` : `(${p.precio_unitario}€/${p.unidad})`}
                   </option>
                 ))}
               </select>

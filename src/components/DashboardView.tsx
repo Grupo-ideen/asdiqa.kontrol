@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '@/lib/AppContext';
 import { calculateBrigadePeriodMetrics, calculateParteMetrics } from '@/lib/calculations';
+import { formatPuntos, roundPuntos } from '@/lib/format';
 import PerformanceTrafficLight from './PerformanceTrafficLight';
 
 export default function DashboardView() {
@@ -86,7 +87,7 @@ export default function DashboardView() {
       if (p.fecha >= fechaInicio && p.fecha <= fechaFin) {
         totalPuntosTarget += p.num_personas * (config?.puntos_objetivo_dia ?? 10.00);
         p.lineas?.forEach(l => {
-          const puntos = (l as any).partida_puntos ?? 0;
+          const puntos = l.partida_puntos ?? 0;
           totalPuntosAchieved += l.metros_ejecutados * puntos;
         });
       }
@@ -142,11 +143,11 @@ export default function DashboardView() {
         partes.forEach(p => {
           if (p.brigada_id === item.brigadaId && p.fecha >= fechaInicio && p.fecha <= fechaFin) {
             p.lineas?.forEach(l => {
-              pointsAchieved += l.metros_ejecutados * ((l as any).partida_puntos ?? 0);
+              pointsAchieved += l.metros_ejecutados * (l.partida_puntos ?? 0);
             });
           }
         });
-        csvContent += `"${item.brigadaNombre}","${item.jefeNombre}",${item.numPartes},${item.metrosAcumulados.toFixed(1)},${pointsAchieved.toFixed(1)},${item.averageCompliance.toFixed(1)}%,"${item.status.toUpperCase()}"\n`;
+        csvContent += `"${item.brigadaNombre}","${item.jefeNombre}",${item.numPartes},${item.metrosAcumulados.toFixed(1)},${roundPuntos(pointsAchieved)},${item.averageCompliance.toFixed(1)}%,"${item.status.toUpperCase()}"\n`;
       } else {
         csvContent += `"${item.brigadaNombre}","${item.jefeNombre}",${item.numPartes},${item.metrosAcumulados.toFixed(1)},${item.revenue.toFixed(2)},${item.expenses.toFixed(2)},${item.margin.toFixed(2)},${item.averageCompliance.toFixed(1)}%,"${item.status.toUpperCase()}"\n`;
       }
@@ -386,13 +387,13 @@ export default function DashboardView() {
           </span>
           <h2 style={{ fontSize: '1.8rem', margin: '0.25rem 0 0.5rem 0', fontWeight: 700, color: isTarea ? 'var(--status-blue)' : 'inherit' }}>
             {isTarea 
-              ? `${totalPuntosAchieved.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts`
+              ? `${formatPuntos(totalPuntosAchieved)} pts`
               : `${totalMetros.toLocaleString('es-ES', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`
             }
           </h2>
           <span style={{ fontSize: '0.8rem', color: 'var(--text-tertiary)' }}>
             {isTarea 
-              ? `${totalMetros.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} tareas (Objetivo: ${totalPuntosTarget.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts)`
+              ? `${formatPuntos(totalMetros)} tareas (Objetivo: ${formatPuntos(totalPuntosTarget)} pts)`
               : 'Total metros registrados'
             }
           </span>
@@ -499,7 +500,7 @@ export default function DashboardView() {
                 partes.forEach(p => {
                   if (p.brigada_id === item.brigadaId && p.fecha >= fechaInicio && p.fecha <= fechaFin) {
                     p.lineas?.forEach(l => {
-                      pointsAchieved += l.metros_ejecutados * ((l as any).partida_puntos ?? 0);
+                      pointsAchieved += l.metros_ejecutados * (l.partida_puntos ?? 0);
                     });
                   }
                 });
@@ -513,7 +514,7 @@ export default function DashboardView() {
                   <td style={{ textAlign: 'right' }}>
                     {isTarea ? item.metrosAcumulados.toFixed(0) : `${item.metrosAcumulados.toFixed(1)} m`}
                   </td>
-                  {isTarea && <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--status-blue)' }}>{pointsAchieved.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts</td>}
+                  {isTarea && <td style={{ textAlign: 'right', fontWeight: 600, color: 'var(--status-blue)' }}>{formatPuntos(pointsAchieved)} pts</td>}
                   <td style={{ textAlign: 'right' }}>{formattedRevenue}</td>
                   {showTaskExpenses ? (
                     <>

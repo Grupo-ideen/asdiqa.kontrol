@@ -5,6 +5,7 @@ import { useApp } from '@/lib/AppContext';
 import { Services } from '@/lib/services';
 import { ParteTrabajo, ParteLinea } from '@/lib/types';
 import { calculateParteMetrics } from '@/lib/calculations';
+import { formatPuntos } from '@/lib/format';
 import PerformanceTrafficLight from './PerformanceTrafficLight';
 
 export default function PartesView() {
@@ -342,7 +343,7 @@ export default function PartesView() {
                           <option value="">{currentObra?.tipo === 'tarea' ? 'Selecciona tarea...' : 'Selecciona partida de presupuesto...'}</option>
                           {partidas.map(p => (
                             <option key={p.id} value={p.id}>
-                              [{p.codigo}] {p.descripcion} ({currentObra?.tipo === 'tarea' ? `${Number(p.puntos || p.precio_unitario).toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts` : `${isAdmin ? `${p.precio_unitario}€/${p.unidad}` : p.unidad}`})
+                              [{p.codigo}] {p.descripcion} ({currentObra?.tipo === 'tarea' ? `${formatPuntos(Number(p.puntos || p.precio_unitario))} pts` : `${isAdmin ? `${p.precio_unitario}€/${p.unidad}` : p.unidad}`})
                             </option>
                           ))}
                         </select>
@@ -612,7 +613,7 @@ export default function PartesView() {
                   {parte.lineas?.map(linea => {
                     const isTarea = currentObra?.tipo === 'tarea';
                     if (isTarea) {
-                      const puntos = (linea as any).partida_puntos ?? 0;
+                      const puntos = linea.partida_puntos ?? 0;
                       const totalPuntos = linea.metros_ejecutados * puntos;
                       const categoria = linea.partida_categoria === 'obra_civil' ? 'obra_civil' : 'cable';
                       const costeLinea = linea.metros_ejecutados * (linea.partida_coste_unitario ?? 0);
@@ -640,7 +641,7 @@ export default function PartesView() {
                               {categoria === 'obra_civil' ? 'Obra civil' : 'Cable'}
                             </span>
                             <span>
-                              <code>{linea.partida_codigo}</code> — {linea.partida_descripcion}: <strong>{linea.metros_ejecutados}</strong> ({puntos.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts/ud → <strong>{totalPuntos.toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts</strong>)
+                              <code>{linea.partida_codigo}</code> — {linea.partida_descripcion}: <strong>{linea.metros_ejecutados}</strong> ({formatPuntos(puntos)} pts/ud → <strong>{formatPuntos(totalPuntos)} pts</strong>)
                             </span>
                             {!isJefeEquipo && costeLinea > 0 && (
                               <span
@@ -698,13 +699,13 @@ export default function PartesView() {
                     <div>
                       <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Puntos Cons.</span>
                       <span style={{ fontWeight: 700, color: 'var(--status-blue)', fontSize: '1rem' }}>
-                        {((parte.lineas?.reduce((sum, l) => sum + l.metros_ejecutados * ((l as any).partida_puntos ?? 0), 0)) ?? 0).toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts
+                        {formatPuntos((parte.lineas?.reduce((sum, l) => sum + l.metros_ejecutados * (l.partida_puntos ?? 0), 0)) ?? 0)} pts
                       </span>
                     </div>
                     <div>
                       <span style={{ display: 'block', color: 'var(--text-tertiary)', fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.03em' }}>Objetivo Día</span>
                       <span style={{ fontWeight: 600, color: 'var(--text-primary)', fontSize: '1rem' }}>
-                        {(parte.num_personas * (config?.puntos_objetivo_dia ?? 10)).toLocaleString('es-ES', { minimumFractionDigits: 0, maximumFractionDigits: 3 })} pts
+                        {formatPuntos(parte.num_personas * (config?.puntos_objetivo_dia ?? 10))} pts
                       </span>
                     </div>
                     <div>

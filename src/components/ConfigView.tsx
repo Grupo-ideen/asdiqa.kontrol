@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { useApp } from '@/lib/AppContext';
 import { Services } from '@/lib/services';
 import { precioPuntoCategoria } from '@/lib/calculations';
+import { PUNTOS_DECIMALES, formatPuntos, roundPuntos } from '@/lib/format';
 import { Partida, Brigada, Usuario, Recurso, Obra, CategoriaTarea } from '@/lib/types';
 
 // Función auxiliar externa para evitar errores de pureza en el render de React
@@ -304,7 +305,7 @@ export default function ConfigView() {
         umbral_verde: Number(umbVerde),
         umbral_azul: Number(umbAzul),
         margen_minimo: Number(margenMin),
-        puntos_objetivo_dia: Number(puntosObjetivoDia),
+        puntos_objetivo_dia: roundPuntos(Number(puntosObjetivoDia)),
         // El precio_punto legacy se mantiene sincronizado con el de cable como fallback.
         precio_punto: Number(precioPuntoCable),
         precio_punto_cable: Number(precioPuntoCable),
@@ -334,7 +335,7 @@ export default function ConfigView() {
         precio_unitario: currentObra?.tipo === 'tarea' ? 0 : Number(partidaPrecio),
         medicion_contrato: currentObra?.tipo === 'tarea' ? 0 : Number(partidaMedicion),
         rendimiento_objetivo: currentObra?.tipo === 'tarea' ? 0 : (partidaRend === '' ? 0 : Number(partidaRend)),
-        puntos: currentObra?.tipo === 'tarea' ? Number(partidaPrecio) : 0,
+        puntos: currentObra?.tipo === 'tarea' ? roundPuntos(Number(partidaPrecio)) : 0,
         categoria: currentObra?.tipo === 'tarea' ? partidaCategoria : undefined,
         coste_unitario: currentObra?.tipo === 'tarea' ? Number(partidaCoste) || 0 : 0,
         obra_id: currentObra?.id || ''
@@ -444,7 +445,7 @@ export default function ConfigView() {
             precio_unitario: isTarea ? 0 : (Number(rowData.precio_unitario) || 0),
             medicion_contrato: isTarea ? 0 : (Number(rowData.medicion_contrato) || 0),
             rendimiento_objetivo: isTarea ? 0 : (Number(rowData.rendimiento_objetivo) || 100),
-            puntos: isTarea ? (Number(rowData.puntos) || 0) : 0,
+            puntos: isTarea ? roundPuntos(Number(rowData.puntos) || 0) : 0,
             categoria: isTarea ? categoria : undefined,
             // Coste opcional en el CSV: sin columna o vacío significa tarea sin coste.
             coste_unitario: isTarea ? (Number(rowData.coste) || 0) : 0,
@@ -621,9 +622,13 @@ export default function ConfigView() {
                     value={puntosObjetivoDia}
                     onChange={e => setPuntosObjetivoDia(Number(e.target.value))}
                     min="0.5"
-                    step="0.5"
+                    step="any"
                     required
+                    aria-describedby="puntos-objetivo-help"
                   />
+                  <span id="puntos-objetivo-help" style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                    Admite hasta {PUNTOS_DECIMALES} decimales.
+                  </span>
                 </div>
                 <fieldset style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', padding: '1rem', margin: 0 }}>
                   <legend style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em', padding: '0 0.4rem' }}>
@@ -785,7 +790,13 @@ export default function ConfigView() {
                       step="any"
                       min="0"
                       required
+                      aria-describedby={currentObra?.tipo === 'tarea' ? 'part-precio-help' : undefined}
                     />
+                    {currentObra?.tipo === 'tarea' && (
+                      <span id="part-precio-help" style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                        Admite hasta {PUNTOS_DECIMALES} decimales (ej: 2,5625).
+                      </span>
+                    )}
                   </div>
                 </div>
                 {currentObra?.tipo === 'tarea' && (
@@ -962,7 +973,7 @@ export default function ConfigView() {
                             {(p.categoria || 'cable') === 'obra_civil' ? 'Obra civil' : 'Cable'}
                           </span>
                         </td>
-                        <td style={{ fontWeight: 600, color: 'var(--status-blue)' }}>{p.puntos || p.precio_unitario} pts</td>
+                        <td style={{ fontWeight: 600, color: 'var(--status-blue)' }}>{formatPuntos(Number(p.puntos || p.precio_unitario))} pts</td>
                         <td style={{ color: p.coste_unitario ? 'var(--text-primary)' : 'var(--text-tertiary)' }}>
                           {p.coste_unitario ? formatCurrency(p.coste_unitario) : '—'}
                         </td>
