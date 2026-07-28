@@ -88,7 +88,8 @@ export interface ParteLinea {
 
 export interface Gasto {
   id: string;
-  fecha: string;
+  fecha: string; // fecha de inicio (o fecha única en gastos de tipo 'unico')
+  fecha_fin?: string | null; // fin de vigencia para gastos mensuales/diarios; null = en curso
   categoria: 'Material' | 'Trabajador' | 'Opcional' | 'Varios';
   concepto: string;
   importe: number;

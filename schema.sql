@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS obras (
 -- ALTER TABLE partidas ADD COLUMN IF NOT EXISTS coste_unitario NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (coste_unitario >= 0);
 -- ALTER TABLE partidas ALTER COLUMN puntos TYPE NUMERIC(12, 4);
 -- ALTER TABLE config ALTER COLUMN puntos_objetivo_dia TYPE NUMERIC(12, 4);
+-- ALTER TABLE gastos ADD COLUMN IF NOT EXISTS fecha_fin DATE;
+-- ALTER TABLE gastos ADD CONSTRAINT gastos_fecha_fin_coherente CHECK (fecha_fin IS NULL OR fecha_fin >= fecha);
 
 -- 1. Tabla de Usuarios y Roles
 CREATE TABLE IF NOT EXISTS usuarios (
@@ -94,7 +96,8 @@ CREATE TABLE IF NOT EXISTS partes_lineas (
 -- 6. Tabla de Gastos
 CREATE TABLE IF NOT EXISTS gastos (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    fecha DATE NOT NULL DEFAULT CURRENT_DATE,
+    fecha DATE NOT NULL DEFAULT CURRENT_DATE, -- fecha de inicio (o fecha única en gastos 'unico')
+    fecha_fin DATE, -- fin de vigencia para gastos mensuales/diarios; NULL = en curso
     categoria TEXT NOT NULL CHECK (categoria IN ('Material', 'Trabajador', 'Opcional', 'Varios')),
     concepto TEXT NOT NULL,
     importe NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (importe >= 0),
@@ -104,7 +107,8 @@ CREATE TABLE IF NOT EXISTS gastos (
     proveedor TEXT,
     obra_id UUID NOT NULL REFERENCES obras(id) ON DELETE CASCADE,
     creado_por UUID REFERENCES usuarios(id) ON DELETE SET NULL,
-    creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT gastos_fecha_fin_coherente CHECK (fecha_fin IS NULL OR fecha_fin >= fecha)
 );
 
 -- 7. Tabla de Configuración (Una por obra)

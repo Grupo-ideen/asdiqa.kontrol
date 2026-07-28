@@ -44,6 +44,64 @@ export function tareaLineaTotals(linea: ParteLinea, config: AppConfig): TareaLin
   };
 }
 
+// ==========================================
+// PRORRATEO DE GASTOS PERIÓDICOS
+// ==========================================
+
+/** Número de días naturales del mes indicado (formato 'YYYY-MM'). */
+function diasDelMes(yyyyMm: string): number {
+  const [y, m] = yyyyMm.split('-').map(Number);
+  // El día 0 del mes siguiente es el último día de este mes.
+  return new Date(y, m, 0).getDate();
+}
+
+/**
+ * ¿La fecha ('YYYY-MM-DD') cae dentro de la ventana de vigencia del gasto?
+ * Un gasto sin `fecha_fin` se considera en curso (vigente desde su fecha en adelante).
+ */
+function gastoVigente(g: Gasto, fecha: string): boolean {
+  if (fecha < g.fecha) return false;
+  if (g.fecha_fin && fecha > g.fecha_fin) return false;
+  return true;
+}
+
+/**
+ * Días naturales que el gasto estuvo activo dentro de un mes concreto: la intersección de
+ * su vigencia [fecha, fecha_fin] con el mes. Base del prorrateo de los gastos mensuales.
+ */
+function diasActivosEnMes(g: Gasto, yyyyMm: string): number {
+  const primerDia = `${yyyyMm}-01`;
+  const ultimoDia = `${yyyyMm}-${String(diasDelMes(yyyyMm)).padStart(2, '0')}`;
+  const desde = g.fecha > primerDia ? g.fecha : primerDia;
+  const hasta = g.fecha_fin && g.fecha_fin < ultimoDia ? g.fecha_fin : ultimoDia;
+  if (desde > hasta) return 0;
+  const ms = new Date(`${hasta}T00:00:00`).getTime() - new Date(`${desde}T00:00:00`).getTime();
+  return Math.round(ms / 86_400_000) + 1; // inclusivo en ambos extremos
+}
+
+/**
+ * Coste de un gasto mensual imputado a un parte concreto, prorrateado por días naturales.
+ *
+ * El importe mensual se prorratea por la fracción del mes en que el gasto estuvo activo
+ * (importe × días activos / días del mes) y ese total del mes se reparte a partes iguales
+ * entre los partes de la brigada de ese mes que caen dentro de la vigencia del gasto. Así el
+ * coste del mes equivale a "lo realmente gastado" —medio mes de alta es medio sueldo, con
+ * independencia de cuántos partes se registren— y cada parte recibe su cuota para el desglose
+ * diario. Sumar la cuota de todos los partes del mes reconstruye el coste mensual prorrateado.
+ */
+export function costeMensualGastoEnParte(g: Gasto, parte: ParteTrabajo, partesBrigada: ParteTrabajo[]): number {
+  if (!gastoVigente(g, parte.fecha)) return 0;
+  const yyyyMm = parte.fecha.substring(0, 7);
+  const diasActivos = diasActivosEnMes(g, yyyyMm);
+  if (diasActivos <= 0) return 0;
+  const costeMes = g.importe * (diasActivos / diasDelMes(yyyyMm));
+  const partesDelMes = partesBrigada.filter(
+    p => p.fecha.substring(0, 7) === yyyyMm && gastoVigente(g, p.fecha)
+  ).length;
+  if (partesDelMes === 0) return 0;
+  return costeMes / partesDelMes;
+}
+
 export interface PerformanceMetrics {
   revenue: number;
   /** Coste directo de las tareas ejecutadas. Siempre 0 en obras por metro. */
@@ -66,7 +124,10 @@ export function calculateParteMetrics(
   gastos: Gasto[],
   config: AppConfig,
   recursos: Recurso[],
-  tipoObra?: 'metro' | 'tarea'
+  tipoObra?: 'metro' | 'tarea',
+  // Partes de referencia para prorratear los gastos mensuales entre los días del mes.
+  // Por defecto solo este parte, lo que carga el mes íntegro sobre él si no se aporta el resto.
+  allPartes: ParteTrabajo[] = [parte]
 ): PerformanceMetrics {
   const umbralVerde = config.umbral_verde;
   const umbralAzul = config.umbral_azul;
@@ -107,22 +168,24 @@ export function calculateParteMetrics(
     averageCompliance = objetivoGlobalDia > 0 ? (totalMetrosParte / objetivoGlobalDia) * 100 : 0;
   }
 
-  // Gastos imputados a la brigada en la fecha del parte
-  const yyyyMm = parte.fecha.substring(0, 7);
+  // Gastos manuales de la brigada imputados a este parte según su tipo de coste.
+  const partesBrigada = allPartes.filter(p => p.brigada_id === parte.brigada_id);
 
-  // Filtrar gastos manuales de la brigada correspondientes al mes según su tipo de coste
+  // Único: se imputa íntegro el día exacto del gasto.
   const unicos = gastos.filter(
     g => g.fecha === parte.fecha && g.brigada_id === parte.brigada_id && (!g.tipo_coste || g.tipo_coste === 'unico')
   );
+  // Mensual y diario: solo si el parte cae dentro de la vigencia [fecha, fecha_fin] del gasto.
   const mensuales = gastos.filter(
-    g => g.brigada_id === parte.brigada_id && g.fecha.substring(0, 7) <= yyyyMm && g.tipo_coste === 'mensual'
+    g => g.brigada_id === parte.brigada_id && g.tipo_coste === 'mensual' && gastoVigente(g, parte.fecha)
   );
   const diarios = gastos.filter(
-    g => g.brigada_id === parte.brigada_id && g.fecha.startsWith(yyyyMm) && g.tipo_coste === 'diario'
+    g => g.brigada_id === parte.brigada_id && g.tipo_coste === 'diario' && gastoVigente(g, parte.fecha)
   );
 
   const totalUnicos = unicos.reduce((sum, g) => sum + g.importe, 0);
-  const totalMensuales = mensuales.reduce((sum, g) => sum + (g.importe / 20), 0); // Fijo 20 días laborables
+  // El mensual se prorratea por días naturales activos y se reparte entre los partes del mes.
+  const totalMensuales = mensuales.reduce((sum, g) => sum + costeMensualGastoEnParte(g, parte, partesBrigada), 0);
   const totalDiarios = diarios.reduce((sum, g) => sum + g.importe, 0);
 
   const manualExpenses = totalUnicos + totalMensuales + totalDiarios;
@@ -202,9 +265,12 @@ export function calculateBrigadePeriodMetrics(
 ): BrigadePeriodMetrics {
   const isTarea = tipoObra === 'tarea';
 
+  // Todos los partes de la brigada (sin filtrar por periodo): denominador estable para
+  // repartir el coste mensual entre los días del mes, aunque el periodo abarque solo parte de él.
+  const partesBrigada = partes.filter(p => p.brigada_id === brigadaId);
+
   // Filtrar partes de esta brigada en el periodo de fechas
-  const partesFiltrados = partes.filter(p => {
-    if (p.brigada_id !== brigadaId) return false;
+  const partesFiltrados = partesBrigada.filter(p => {
     if (fechaInicio && p.fecha < fechaInicio) return false;
     if (fechaFin && p.fecha > fechaFin) return false;
     return true;
@@ -229,27 +295,22 @@ export function calculateBrigadePeriodMetrics(
     return sum + monthlyCost;
   }, 0);
 
-  // 3. Imputar costes proporcionales mensuales y costes diarios por cada jornada trabajada (cada parte de trabajo en el rango)
-  partesFiltrados.forEach(p => {
-    const yyyyMm = p.fecha.substring(0, 7);
+  // 3. Imputar costes periódicos por cada jornada trabajada (cada parte de trabajo del periodo)
+  const mensualesBrigada = gastos.filter(g => g.brigada_id === brigadaId && g.tipo_coste === 'mensual');
+  const diariosBrigada = gastos.filter(g => g.brigada_id === brigadaId && g.tipo_coste === 'diario');
 
+  partesFiltrados.forEach(p => {
     // Prorrateo de recursos del mes (fijo 20 días laborables)
     imputedExpenses += (resourceBaseCost / 20);
 
-    // Prorrateo de gastos mensuales del mes (fijo 20 días laborables)
-    const mensualesMes = gastos.filter(
-      g => g.brigada_id === brigadaId && g.fecha.substring(0, 7) <= yyyyMm && g.tipo_coste === 'mensual'
-    );
-    mensualesMes.forEach(g => {
-      imputedExpenses += (g.importe / 20);
+    // Gastos mensuales: prorrateados por días naturales activos y repartidos entre los partes del mes.
+    mensualesBrigada.forEach(g => {
+      imputedExpenses += costeMensualGastoEnParte(g, p, partesBrigada);
     });
 
-    // Gastos diarios imputados por jornada
-    const diariosMes = gastos.filter(
-      g => g.brigada_id === brigadaId && g.fecha.startsWith(yyyyMm) && g.tipo_coste === 'diario'
-    );
-    diariosMes.forEach(g => {
-      imputedExpenses += g.importe;
+    // Gastos diarios: coste fijo por jornada dentro de su ventana de vigencia.
+    diariosBrigada.forEach(g => {
+      if (gastoVigente(g, p.fecha)) imputedExpenses += g.importe;
     });
   });
 

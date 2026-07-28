@@ -1001,6 +1001,7 @@ export const Services = {
         const dbGasto = {
           id: gasto.id.startsWith('g-') ? undefined : gasto.id,
           fecha: gasto.fecha,
+          fecha_fin: gasto.fecha_fin || null,
           categoria: gasto.categoria,
           concepto: gasto.concepto,
           importe: gasto.importe,
@@ -1030,6 +1031,7 @@ export const Services = {
       id: isNew ? `g-${Date.now()}` : gasto.id,
       importe: Number(gasto.importe),
       tipo_coste: gasto.tipo_coste || 'unico',
+      fecha_fin: gasto.fecha_fin || null,
       partida_id: gasto.partida_id || null,
       proveedor: gasto.proveedor || null
     };

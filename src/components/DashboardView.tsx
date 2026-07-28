@@ -114,8 +114,8 @@ export default function DashboardView() {
     .sort((a, b) => a.fecha.localeCompare(b.fecha));
 
   const chartDataPoints = partesFiltradosParaGrafico.map(p => {
-    const metrics = config 
-      ? calculateParteMetrics(p, gastos, config, recursos, currentObra?.tipo) 
+    const metrics = config
+      ? calculateParteMetrics(p, gastos, config, recursos, currentObra?.tipo, partes)
       : null;
 
     return {

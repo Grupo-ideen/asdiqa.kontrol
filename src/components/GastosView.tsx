@@ -16,9 +16,11 @@ export default function GastosView() {
   const [filterFechaInicio, setFilterFechaInicio] = useState('');
   const [filterFechaFin, setFilterFechaFin] = useState('');
 
-  // Estados del Formulario (Creación)
+  // Estados del Formulario (Creación / Edición)
   const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingGasto, setEditingGasto] = useState<Gasto | null>(null);
   const [formFecha, setFormFecha] = useState(new Date().toISOString().split('T')[0]);
+  const [formFechaFin, setFormFechaFin] = useState('');
   const [formCategoria, setFormCategoria] = useState<'Material' | 'Trabajador' | 'Opcional' | 'Varios'>('Material');
   const [formConcepto, setFormConcepto] = useState('');
   const [formImporte, setFormImporte] = useState(0);
@@ -28,8 +30,10 @@ export default function GastosView() {
   const [formTipoCoste, setFormTipoCoste] = useState<'unico' | 'mensual' | 'diario'>('unico');
 
   const isReadOnly = currentUser?.rol === 'lector';
+  // La fecha fin solo tiene sentido en gastos periódicos (mensual o diario).
+  const soportaFechaFin = formTipoCoste === 'mensual' || formTipoCoste === 'diario';
 
-  // Guardar Gasto
+  // Guardar Gasto (alta o edición)
   const handleSaveGasto = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isReadOnly) return;
@@ -37,11 +41,18 @@ export default function GastosView() {
       showToast('Por favor rellena todos los campos obligatorios y asegúrate de que el importe sea mayor que 0.', 'error');
       return;
     }
+    // La fecha fin solo aplica a gastos periódicos y no puede ser anterior al inicio.
+    const fechaFin = soportaFechaFin && formFechaFin ? formFechaFin : null;
+    if (fechaFin && fechaFin < formFecha) {
+      showToast('La fecha fin no puede ser anterior a la fecha de inicio.', 'error');
+      return;
+    }
 
     try {
       const gastoData: Gasto = {
-        id: `g-temp`,
+        id: editingGasto?.id || `g-temp`,
         fecha: formFecha,
+        fecha_fin: fechaFin,
         categoria: formCategoria,
         concepto: formConcepto,
         importe: Number(formImporte),
@@ -49,7 +60,7 @@ export default function GastosView() {
         brigada_id: formBrigadaId,
         partida_id: formPartidaId || null,
         proveedor: formProveedor || null,
-        creado_por: currentUser?.id || null,
+        creado_por: editingGasto?.creado_por || currentUser?.id || null,
         obra_id: currentObra?.id || ''
       };
 
@@ -57,11 +68,27 @@ export default function GastosView() {
       setIsFormOpen(false);
       resetForm();
       await refreshAll();
-      showToast('Gasto registrado con éxito.', 'success');
+      showToast(editingGasto ? 'Gasto actualizado con éxito.' : 'Gasto registrado con éxito.', 'success');
     } catch (err) {
       console.error(err);
       showToast('Error al guardar el gasto.', 'error');
     }
+  };
+
+  // Cargar un gasto existente en el formulario para editarlo
+  const handleEditGasto = (g: Gasto) => {
+    if (isReadOnly) return;
+    setEditingGasto(g);
+    setFormFecha(g.fecha);
+    setFormFechaFin(g.fecha_fin || '');
+    setFormCategoria(g.categoria);
+    setFormConcepto(g.concepto);
+    setFormImporte(g.importe);
+    setFormBrigadaId(g.brigada_id);
+    setFormPartidaId(g.partida_id || '');
+    setFormProveedor(g.proveedor || '');
+    setFormTipoCoste(g.tipo_coste || 'unico');
+    setIsFormOpen(true);
   };
 
   // Borrar Gasto
@@ -78,7 +105,9 @@ export default function GastosView() {
   };
 
   const resetForm = () => {
+    setEditingGasto(null);
     setFormFecha(new Date().toISOString().split('T')[0]);
+    setFormFechaFin('');
     setFormCategoria('Material');
     setFormConcepto('');
     setFormImporte(0);
@@ -88,10 +117,15 @@ export default function GastosView() {
     setFormTipoCoste('unico');
   };
 
-  // Abrir formulario
+  // Abrir formulario en modo alta
   const handleOpenForm = () => {
     resetForm();
     setIsFormOpen(true);
+  };
+
+  const handleCloseForm = () => {
+    setIsFormOpen(false);
+    resetForm();
   };
 
   // Filtrado de la lista de gastos
@@ -158,11 +192,11 @@ export default function GastosView() {
       {/* FORMULARIO DE ALTA */}
       {isFormOpen && !isReadOnly && (
         <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', marginBottom: '2rem' }}>
-          <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>Registrar Nuevo Gasto</h2>
-          
+          <h2 style={{ fontSize: '1.2rem', marginBottom: '1rem' }}>{editingGasto ? 'Editar Gasto' : 'Registrar Nuevo Gasto'}</h2>
+
           <form onSubmit={handleSaveGasto} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1rem' }}>
             <div>
-              <label htmlFor="form-fecha">Fecha del Gasto:</label>
+              <label htmlFor="form-fecha">{soportaFechaFin ? 'Fecha de inicio:' : 'Fecha del Gasto:'}</label>
               <input
                 type="date"
                 id="form-fecha"
@@ -171,6 +205,23 @@ export default function GastosView() {
                 required
               />
             </div>
+
+            {soportaFechaFin && (
+              <div>
+                <label htmlFor="form-fecha-fin">Fecha de fin (opcional):</label>
+                <input
+                  type="date"
+                  id="form-fecha-fin"
+                  value={formFechaFin}
+                  min={formFecha}
+                  onChange={e => setFormFechaFin(e.target.value)}
+                  aria-describedby="form-fecha-fin-help"
+                />
+                <span id="form-fecha-fin-help" style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                  Déjala vacía si el gasto sigue en curso. {formTipoCoste === 'mensual' ? 'El importe mensual se prorratea por los días naturales activos.' : 'El coste diario solo se imputa dentro de este intervalo.'}
+                </span>
+              </div>
+            )}
 
             <div>
               <label htmlFor="form-categoria">Categoría:</label>
@@ -221,7 +272,7 @@ export default function GastosView() {
                 required
               >
                 <option value="unico">Gasto Único (Imputado en la fecha del registro)</option>
-                <option value="mensual">Gasto Mensual (Prorrateado entre los días trabajados del mes)</option>
+                <option value="mensual">Gasto Mensual (Prorrateado por días naturales activos)</option>
                 <option value="diario">Gasto Diario (Coste fijo por cada día de trabajo)</option>
               </select>
             </div>
@@ -272,9 +323,9 @@ export default function GastosView() {
 
             <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '0.5rem', marginTop: '0.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem' }}>
               <button type="submit" className="primary">
-                Guardar Gasto
+                {editingGasto ? 'Actualizar Gasto' : 'Guardar Gasto'}
               </button>
-              <button type="button" onClick={() => setIsFormOpen(false)}>
+              <button type="button" onClick={handleCloseForm}>
                 Cancelar
               </button>
             </div>
@@ -433,9 +484,18 @@ export default function GastosView() {
             </tr>
           </thead>
           <tbody>
-            {filteredGastos.map(g => (
+            {filteredGastos.map(g => {
+              const esPeriodico = g.tipo_coste === 'mensual' || g.tipo_coste === 'diario';
+              return (
               <tr key={g.id}>
-                <td>{g.fecha}</td>
+                <td>
+                  {g.fecha}
+                  {esPeriodico && (
+                    <span style={{ display: 'block', fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                      {g.fecha_fin ? `hasta ${g.fecha_fin}` : 'en curso'}
+                    </span>
+                  )}
+                </td>
                 <td>
                   <span style={{
                     fontSize: '0.75rem',
@@ -469,17 +529,26 @@ export default function GastosView() {
                 <td style={{ textAlign: 'right', fontWeight: 600 }}>{g.importe.toFixed(2)} €</td>
                 {!isReadOnly && (
                   <td style={{ textAlign: 'right' }}>
-                    <button
-                      onClick={() => handleDeleteGasto(g.id)}
-                      className="danger"
-                      style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                    >
-                      Eliminar
-                    </button>
+                    <div style={{ display: 'inline-flex', gap: '0.25rem' }}>
+                      <button
+                        onClick={() => handleEditGasto(g)}
+                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                      >
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => handleDeleteGasto(g.id)}
+                        className="danger"
+                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                      >
+                        Eliminar
+                      </button>
+                    </div>
                   </td>
                 )}
               </tr>
-            ))}
+              );
+            })}
             {filteredGastos.length === 0 && (
               <tr>
                 <td colSpan={isReadOnly ? 8 : 9} style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: '2rem' }}>
