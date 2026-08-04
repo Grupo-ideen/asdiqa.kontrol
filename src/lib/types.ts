@@ -32,13 +32,27 @@ export interface Partida {
   codigo: string;
   descripcion: string;
   unidad: string; // m, ud, m2, etc.
-  precio_unitario: number;
+  precio_unitario: number; // precio base, vigente desde el inicio de la obra
   medicion_contrato: number;
   rendimiento_objetivo: number; // m/persona/dia
   puntos?: number;
   categoria?: CategoriaTarea; // solo relevante en obras por tarea (cable / obra civil)
   coste_unitario?: number; // € de coste directo por cada tarea realizada (0 = sin coste)
   obra_id: string;
+  creado_en?: string;
+  // Relaciones
+  precios_historial?: PartidaPrecio[]; // cambios de precio con fecha de vigencia (obras por metro)
+}
+
+/**
+ * Cambio de precio de una partida a partir de una fecha (obras por metro). Cada parte usa el
+ * precio vigente en su fecha; el `precio_unitario` base de la partida rige antes del primer cambio.
+ */
+export interface PartidaPrecio {
+  id: string;
+  partida_id: string;
+  precio_unitario: number;
+  fecha_desde: string; // 'YYYY-MM-DD': el precio aplica a los partes con fecha >= esta
   creado_en?: string;
 }
 
@@ -142,6 +156,7 @@ export interface DatabaseSchema {
   usuarios_obras: UsuarioObra[];
   usuarios: Usuario[];
   partidas: Partida[];
+  partida_precios: PartidaPrecio[];
   brigadas: Brigada[];
   partes_trabajo: ParteTrabajo[];
   partes_lineas: ParteLinea[];

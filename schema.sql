@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS obras (
 -- ALTER TABLE gastos ADD CONSTRAINT gastos_fecha_fin_coherente CHECK (fecha_fin IS NULL OR fecha_fin >= fecha);
 -- ALTER TABLE config ADD COLUMN IF NOT EXISTS puntos_totales_cable NUMERIC(12, 4) NOT NULL DEFAULT 0.0000;
 -- ALTER TABLE config ADD COLUMN IF NOT EXISTS puntos_totales_obra_civil NUMERIC(12, 4) NOT NULL DEFAULT 0.0000;
+-- (nueva tabla) partida_precios: ver migration_add_partida_precios.sql
 
 -- 1. Tabla de Usuarios y Roles
 CREATE TABLE IF NOT EXISTS usuarios (
@@ -60,6 +61,18 @@ CREATE TABLE IF NOT EXISTS partidas (
     creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (codigo, obra_id)
 );
+
+-- 2b. Historial de precios de partida (obras por metro): cambios de precio con fecha de vigencia
+CREATE TABLE IF NOT EXISTS partida_precios (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    partida_id UUID NOT NULL REFERENCES partidas(id) ON DELETE CASCADE,
+    precio_unitario NUMERIC(12, 2) NOT NULL DEFAULT 0.00 CHECK (precio_unitario >= 0),
+    fecha_desde DATE NOT NULL, -- el precio aplica a los partes con fecha >= esta
+    creado_en TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (partida_id, fecha_desde)
+);
+
+CREATE INDEX IF NOT EXISTS idx_partida_precios_partida ON partida_precios(partida_id);
 
 -- 3. Tabla de Brigadas / Equipos
 CREATE TABLE IF NOT EXISTS brigadas (

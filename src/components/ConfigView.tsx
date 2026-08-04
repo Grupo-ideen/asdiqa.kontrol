@@ -40,6 +40,9 @@ export default function ConfigView() {
   const [partidaRend, setPartidaRend] = useState<number | ''>('');
   const [partidaCategoria, setPartidaCategoria] = useState<CategoriaTarea>('cable');
   const [partidaCoste, setPartidaCoste] = useState(0);
+  // Alta de un cambio de precio (historial por fecha) de la partida en edición
+  const [nuevoPrecioFecha, setNuevoPrecioFecha] = useState('');
+  const [nuevoPrecioValor, setNuevoPrecioValor] = useState<number | ''>('');
   const [csvError, setCsvError] = useState('');
   const [csvSuccess, setCsvSuccess] = useState('');
 
@@ -396,6 +399,42 @@ export default function ConfigView() {
     setPartidaRend('');
     setPartidaCategoria('cable');
     setPartidaCoste(0);
+    setNuevoPrecioFecha('');
+    setNuevoPrecioValor('');
+  };
+
+  // Añadir un cambio de precio con fecha de vigencia a la partida en edición
+  const handleAddPrecio = async () => {
+    if (!selectedPartida) return;
+    if (!nuevoPrecioFecha || nuevoPrecioValor === '' || Number(nuevoPrecioValor) < 0) {
+      showToast('Indica una fecha y un precio válido para el cambio.', 'error');
+      return;
+    }
+    try {
+      await Services.savePartidaPrecio({
+        id: 'pp-temp',
+        partida_id: selectedPartida.id,
+        precio_unitario: Number(nuevoPrecioValor),
+        fecha_desde: nuevoPrecioFecha
+      });
+      setNuevoPrecioFecha('');
+      setNuevoPrecioValor('');
+      await refreshAll();
+      showToast('Cambio de precio guardado.', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast('Error al guardar el cambio de precio.', 'error');
+    }
+  };
+
+  const handleDeletePrecio = async (id: string) => {
+    try {
+      await Services.deletePartidaPrecio(id);
+      await refreshAll();
+    } catch (err) {
+      console.error(err);
+      showToast('Error al eliminar el cambio de precio.', 'error');
+    }
   };
 
   // Importar CSV
@@ -909,6 +948,66 @@ export default function ConfigView() {
                   </div>
                 )}
 
+                {/* Historial de precios por fecha (solo obras por metro) */}
+                {currentObra?.tipo !== 'tarea' && !selectedPartida && (
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', margin: 0 }}>
+                    Podrás programar cambios de precio por fecha una vez creada la partida.
+                  </p>
+                )}
+                {currentObra?.tipo !== 'tarea' && selectedPartida && (() => {
+                  const historial = (partidas.find(p => p.id === selectedPartida.id)?.precios_historial ?? [])
+                    .slice()
+                    .sort((a, b) => a.fecha_desde.localeCompare(b.fecha_desde));
+                  return (
+                    <fieldset style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', padding: '1rem', margin: 0 }}>
+                      <legend style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em', padding: '0 0.4rem' }}>
+                        Cambios de precio por fecha
+                      </legend>
+                      <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', margin: '0 0 0.75rem' }}>
+                        Precio base <strong>{formatCurrency(Number(partidaPrecio))}/{partidaUnidad}</strong> desde el inicio. Cada parte cobra el precio vigente en su fecha; los partes anteriores a un cambio no se modifican.
+                      </p>
+                      {historial.length > 0 && (
+                        <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                          {historial.map(h => (
+                            <li key={h.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.85rem' }}>
+                              <span>Desde <strong>{h.fecha_desde}</strong>: <strong>{formatCurrency(h.precio_unitario)}</strong>/{partidaUnidad}</span>
+                              <button type="button" onClick={() => handleDeletePrecio(h.id)} className="danger" style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}>
+                                Eliminar
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.5rem', alignItems: 'end' }}>
+                        <div>
+                          <label htmlFor="nuevo-precio-fecha" style={{ fontSize: '0.75rem' }}>A partir del:</label>
+                          <input
+                            type="date"
+                            id="nuevo-precio-fecha"
+                            value={nuevoPrecioFecha}
+                            onChange={e => setNuevoPrecioFecha(e.target.value)}
+                          />
+                        </div>
+                        <div>
+                          <label htmlFor="nuevo-precio-valor" style={{ fontSize: '0.75rem' }}>Nuevo precio (€):</label>
+                          <input
+                            type="number"
+                            id="nuevo-precio-valor"
+                            value={nuevoPrecioValor}
+                            onChange={e => setNuevoPrecioValor(e.target.value === '' ? '' : Number(e.target.value))}
+                            min="0"
+                            step="0.01"
+                            placeholder="2.50"
+                          />
+                        </div>
+                        <button type="button" onClick={handleAddPrecio} style={{ fontSize: '0.8rem' }}>
+                          Añadir
+                        </button>
+                      </div>
+                    </fieldset>
+                  );
+                })()}
+
                 <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
                   <button type="submit" className="primary">
                     {selectedPartida ? 'Actualizar' : 'Crear'}
@@ -1020,7 +1119,17 @@ export default function ConfigView() {
                       </>
                     ) : (
                       <>
-                        <td>{p.precio_unitario.toFixed(2)} €</td>
+                        <td>
+                          {p.precio_unitario.toFixed(2)} €
+                          {(p.precios_historial?.length ?? 0) > 0 && (
+                            <span
+                              title={`${p.precios_historial!.length} cambio(s) de precio por fecha`}
+                              style={{ marginLeft: '0.35rem', fontSize: '0.65rem', fontWeight: 600, padding: '0.1rem 0.35rem', borderRadius: '999px', backgroundColor: 'rgba(59, 130, 246, 0.12)', color: '#3b82f6', whiteSpace: 'nowrap' }}
+                            >
+                              +{p.precios_historial!.length} tarifa{p.precios_historial!.length > 1 ? 's' : ''}
+                            </span>
+                          )}
+                        </td>
                         <td>{p.medicion_contrato.toLocaleString('es-ES')}</td>
                         <td>{p.rendimiento_objetivo} {p.unidad}/pers/día</td>
                       </>

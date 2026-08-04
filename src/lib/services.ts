@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { supabase, isSupabaseConfigured } from './supabase';
-import { Usuario, Partida, Brigada, ParteTrabajo, ParteLinea, Gasto, AppConfig, DatabaseSchema, Recurso, Obra, UsuarioObra } from './types';
+import { Usuario, Partida, PartidaPrecio, Brigada, ParteTrabajo, ParteLinea, Gasto, AppConfig, DatabaseSchema, Recurso, Obra, UsuarioObra } from './types';
+import { precioUnitarioVigente } from './calculations';
 
 // ==========================================
 // SEED DATA PARA LOCALSTORAGE (MOCK)
@@ -194,6 +195,7 @@ function getLocalDB(): DatabaseSchema {
       usuarios_obras: SEED_USUARIOS_OBRAS,
       usuarios: SEED_USUARIOS,
       partidas: SEED_PARTIDAS,
+      partida_precios: [],
       brigadas: SEED_BRIGADAS,
       partes_trabajo: SEED_PARTES,
       partes_lineas: SEED_LINEAS,
@@ -210,6 +212,7 @@ function getLocalDB(): DatabaseSchema {
       usuarios_obras: SEED_USUARIOS_OBRAS,
       usuarios: SEED_USUARIOS,
       partidas: SEED_PARTIDAS,
+      partida_precios: [],
       brigadas: SEED_BRIGADAS,
       partes_trabajo: SEED_PARTES,
       partes_lineas: SEED_LINEAS,
@@ -231,6 +234,7 @@ function getLocalDB(): DatabaseSchema {
     usuarios_obras: parsed.usuarios_obras || SEED_USUARIOS_OBRAS,
     usuarios: parsed.usuarios || SEED_USUARIOS,
     partidas: parsed.partidas || SEED_PARTIDAS,
+    partida_precios: parsed.partida_precios || [],
     brigadas: parsed.brigadas || SEED_BRIGADAS,
     partes_trabajo: parsed.partes_trabajo || SEED_PARTES,
     partes_lineas: parsed.partes_lineas || SEED_LINEAS,
@@ -244,6 +248,44 @@ function saveLocalDB(db: DatabaseSchema) {
   if (typeof window !== 'undefined') {
     localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(db));
   }
+}
+
+/**
+ * Carga el historial de precios de las partidas indicadas como mapa partida_id -> tarifas.
+ *
+ * Se consulta de forma AISLADA a propósito: si la tabla `partida_precios` aún no existe (la
+ * migración no se ha aplicado), la consulta falla, se registra un aviso y se devuelve un mapa
+ * vacío. Así la carga de partidas y partes nunca se rompe por esta función: sin historial,
+ * cada partida usa su precio base y todo funciona como antes de esta característica.
+ */
+async function loadPartidaPreciosMap(partidaIds: string[]): Promise<Record<string, PartidaPrecio[]>> {
+  const map: Record<string, PartidaPrecio[]> = {};
+  if (partidaIds.length === 0) return map;
+
+  if (isSupabaseConfigured && supabase) {
+    try {
+      const { data, error } = await supabase.from('partida_precios').select('*').in('partida_id', partidaIds);
+      if (error) {
+        console.warn('Historial de precios no disponible (¿migración partida_precios pendiente?):', error.message);
+        return map; // degradación elegante: sin historial, se usan los precios base
+      }
+      (data || []).forEach((pr: any) => {
+        (map[pr.partida_id] ||= []).push({ ...pr, precio_unitario: Number(pr.precio_unitario) });
+      });
+      return map;
+    } catch (e) {
+      console.warn('Historial de precios no disponible:', e);
+      return map;
+    }
+  }
+
+  const db = getLocalDB();
+  db.partida_precios
+    .filter(pr => partidaIds.includes(pr.partida_id))
+    .forEach(pr => {
+      (map[pr.partida_id] ||= []).push(pr);
+    });
+  return map;
 }
 
 // ==========================================
@@ -307,8 +349,10 @@ export const Services = {
       }
     }
     const db = getLocalDB();
+    const partidaIdsObra = new Set(db.partidas.filter(p => p.obra_id === id).map(p => p.id));
     db.obras = db.obras.filter(o => o.id !== id);
     db.partidas = db.partidas.filter(p => p.obra_id !== id);
+    db.partida_precios = db.partida_precios.filter(pr => !partidaIdsObra.has(pr.partida_id));
     db.brigadas = db.brigadas.filter(b => b.obra_id !== id);
     db.partes_trabajo = db.partes_trabajo.filter(pt => pt.obra_id !== id);
     db.gastos = db.gastos.filter(g => g.obra_id !== id);
@@ -594,20 +638,34 @@ export const Services = {
     if (isSupabaseConfigured && supabase) {
       try {
         const { data, error } = await supabase.from('partidas').select('*').eq('obra_id', obraId).order('codigo');
-        if (!error && data) return data as Partida[];
+        if (!error && data) {
+          // El historial de precios se carga aparte para no acoplar esta consulta a la tabla nueva.
+          const preciosMap = await loadPartidaPreciosMap(data.map((p: any) => p.id));
+          return data.map((p: any) => ({ ...p, precios_historial: preciosMap[p.id] || [] })) as Partida[];
+        }
       } catch (e) {
         console.error('Error al obtener partidas de Supabase, usando local:', e);
       }
     }
-    return getLocalDB().partidas.filter(p => p.obra_id === obraId).sort((a, b) => a.codigo.localeCompare(b.codigo));
+    const db = getLocalDB();
+    return db.partidas
+      .filter(p => p.obra_id === obraId)
+      .map(p => ({
+        ...p,
+        precios_historial: db.partida_precios.filter(pr => pr.partida_id === p.id)
+      }))
+      .sort((a, b) => a.codigo.localeCompare(b.codigo));
   },
 
   async savePartida(partida: Partida): Promise<Partida> {
+    // `precios_historial` es una relación (tabla partida_precios), no una columna: se excluye.
+    const { precios_historial, ...partidaData } = partida;
+    void precios_historial;
     if (isSupabaseConfigured && supabase) {
       try {
         const dbPartida = {
-          ...partida,
-          id: !partida.id || partida.id.startsWith('p-') ? undefined : partida.id
+          ...partidaData,
+          id: !partidaData.id || partidaData.id.startsWith('p-') ? undefined : partidaData.id
         };
         const { data, error } = await supabase
           .from('partidas')
@@ -620,14 +678,14 @@ export const Services = {
       }
     }
     const db = getLocalDB();
-    const index = db.partidas.findIndex(p => (p.id === partida.id || p.codigo === partida.codigo) && p.obra_id === partida.obra_id);
+    const index = db.partidas.findIndex(p => (p.id === partidaData.id || p.codigo === partidaData.codigo) && p.obra_id === partidaData.obra_id);
     if (index >= 0) {
-      db.partidas[index] = { ...db.partidas[index], ...partida };
+      db.partidas[index] = { ...db.partidas[index], ...partidaData };
     } else {
-      db.partidas.push(partida);
+      db.partidas.push(partidaData);
     }
     saveLocalDB(db);
-    return partida;
+    return partidaData;
   },
 
   async importPartidas(obraId: string, partidas: Partida[]): Promise<boolean> {
@@ -664,6 +722,65 @@ export const Services = {
     }
     const db = getLocalDB();
     db.partidas = db.partidas.filter(p => p.id !== id);
+    db.partida_precios = db.partida_precios.filter(pr => pr.partida_id !== id);
+    saveLocalDB(db);
+    return true;
+  },
+
+  // ==========================================
+  // HISTORIAL DE PRECIOS DE PARTIDA (obras por metro)
+  // ==========================================
+  async savePartidaPrecio(precio: PartidaPrecio): Promise<PartidaPrecio> {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const dbPrecio = {
+          id: !precio.id || precio.id.startsWith('pp-') ? undefined : precio.id,
+          partida_id: precio.partida_id,
+          precio_unitario: Number(precio.precio_unitario),
+          fecha_desde: precio.fecha_desde
+        };
+        // onConflict evita duplicar un precio para la misma partida y fecha (lo actualiza).
+        const { data, error } = await supabase
+          .from('partida_precios')
+          .upsert(dbPrecio, { onConflict: 'partida_id,fecha_desde' })
+          .select()
+          .single();
+        if (!error && data) return { ...data, precio_unitario: Number(data.precio_unitario) } as PartidaPrecio;
+        if (error) throw error;
+      } catch (e) {
+        console.error('Error al guardar precio de partida en Supabase, usando local:', e);
+      }
+    }
+    const db = getLocalDB();
+    // Una sola tarifa por partida y fecha: si ya existe, se reemplaza.
+    const idx = db.partida_precios.findIndex(
+      pr => pr.partida_id === precio.partida_id && pr.fecha_desde === precio.fecha_desde
+    );
+    const finalPrecio: PartidaPrecio = {
+      ...precio,
+      id: idx >= 0 ? db.partida_precios[idx].id : (precio.id && !precio.id.startsWith('pp-') ? precio.id : `pp-${Date.now()}`),
+      precio_unitario: Number(precio.precio_unitario)
+    };
+    if (idx >= 0) {
+      db.partida_precios[idx] = finalPrecio;
+    } else {
+      db.partida_precios.push(finalPrecio);
+    }
+    saveLocalDB(db);
+    return finalPrecio;
+  },
+
+  async deletePartidaPrecio(id: string): Promise<boolean> {
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { error } = await supabase.from('partida_precios').delete().eq('id', id);
+        if (!error) return true;
+      } catch (e) {
+        console.error('Error al borrar precio de partida de Supabase, usando local:', e);
+      }
+    }
+    const db = getLocalDB();
+    db.partida_precios = db.partida_precios.filter(pr => pr.id !== id);
     saveLocalDB(db);
     return true;
   },
@@ -776,7 +893,7 @@ export const Services = {
     const db = getLocalDB();
     if (isSupabaseConfigured && supabase) {
       try {
-        // Carga partes con brigada, creador y líneas
+        // Carga partes con brigada, creador y líneas (sin acoplar a la tabla de precios)
         const { data, error } = await supabase
           .from('partes_trabajo')
           .select(`
@@ -792,6 +909,12 @@ export const Services = {
           .order('fecha', { ascending: false });
 
         if (!error && data) {
+          // Historial de precios cargado aparte; si la tabla no existe, mapa vacío (precios base).
+          const partidaIds = Array.from(new Set(
+            data.flatMap((pt: any) => (pt.partes_lineas || []).map((pl: any) => pl.partida_id)).filter(Boolean)
+          )) as string[];
+          const preciosMap = await loadPartidaPreciosMap(partidaIds);
+
           return data.map((pt: any) => ({
             id: pt.id,
             fecha: pt.fecha,
@@ -804,21 +927,25 @@ export const Services = {
             actualizado_en: pt.actualizado_en,
             brigada_nombre: pt.brigada?.nombre || 'Desconocida',
             creado_por_nombre: pt.creado_por_user?.nombre || 'Desconocido',
-            lineas: pt.partes_lineas?.map((pl: any) => ({
-              id: pl.id,
-              parte_id: pl.parte_id,
-              partida_id: pl.partida_id,
-              metros_ejecutados: Number(pl.metros_ejecutados),
-              desglose: pl.desglose || '',
-              partida_codigo: pl.partida?.codigo || 'N/A',
-              partida_descripcion: pl.partida?.descripcion || '',
-              partida_unidad: pl.partida?.unidad || 'm',
-              partida_precio_unitario: Number(pl.partida?.precio_unitario || 0),
-              partida_rendimiento_objetivo: Number(pl.partida?.rendimiento_objetivo ?? 0),
-              partida_puntos: Number(pl.partida?.puntos || 0),
-              partida_categoria: pl.partida?.categoria || undefined,
-              partida_coste_unitario: Number(pl.partida?.coste_unitario || 0)
-            })) || []
+            lineas: pt.partes_lineas?.map((pl: any) => {
+              // El precio del parte es el vigente en su fecha, no el precio actual de la partida.
+              const precioBase = Number(pl.partida?.precio_unitario || 0);
+              return {
+                id: pl.id,
+                parte_id: pl.parte_id,
+                partida_id: pl.partida_id,
+                metros_ejecutados: Number(pl.metros_ejecutados),
+                desglose: pl.desglose || '',
+                partida_codigo: pl.partida?.codigo || 'N/A',
+                partida_descripcion: pl.partida?.descripcion || '',
+                partida_unidad: pl.partida?.unidad || 'm',
+                partida_precio_unitario: precioUnitarioVigente(precioBase, preciosMap[pl.partida_id], pt.fecha),
+                partida_rendimiento_objetivo: Number(pl.partida?.rendimiento_objetivo ?? 0),
+                partida_puntos: Number(pl.partida?.puntos || 0),
+                partida_categoria: pl.partida?.categoria || undefined,
+                partida_coste_unitario: Number(pl.partida?.coste_unitario || 0)
+              };
+            }) || []
           })) as ParteTrabajo[];
         }
       } catch (e) {
@@ -834,12 +961,14 @@ export const Services = {
         .filter(pl => pl.parte_id === pt.id)
         .map(pl => {
           const partida = db.partidas.find(p => p.id === pl.partida_id);
+          // Precio vigente en la fecha del parte según el historial de la partida.
+          const historial = db.partida_precios.filter(pr => pr.partida_id === pl.partida_id);
           return {
             ...pl,
             partida_codigo: partida?.codigo || 'N/A',
             partida_descripcion: partida?.descripcion || '',
             partida_unidad: partida?.unidad || 'm',
-            partida_precio_unitario: partida?.precio_unitario || 0,
+            partida_precio_unitario: precioUnitarioVigente(partida?.precio_unitario || 0, historial, pt.fecha),
             partida_rendimiento_objetivo: partida?.rendimiento_objetivo ?? 0,
             partida_puntos: partida?.puntos || 0,
             partida_categoria: partida?.categoria,

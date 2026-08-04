@@ -1,4 +1,24 @@
-import { ParteTrabajo, ParteLinea, Gasto, AppConfig, Recurso, CategoriaTarea } from './types';
+import { ParteTrabajo, ParteLinea, Gasto, AppConfig, Recurso, CategoriaTarea, PartidaPrecio } from './types';
+
+/**
+ * Precio unitario de una partida vigente en una fecha dada (obras por metro).
+ *
+ * Se aplica el cambio de precio más reciente cuya `fecha_desde` sea anterior o igual a la
+ * fecha; si ninguno la precede, rige el `base` (precio original de la partida). Así los partes
+ * de días anteriores a un cambio conservan siempre el precio antiguo.
+ */
+export function precioUnitarioVigente(base: number, historial: PartidaPrecio[] | undefined, fecha: string): number {
+  if (!historial || historial.length === 0) return base;
+  let precio = base;
+  let mejorFecha = ''; // cadena vacía es anterior a cualquier fecha ISO
+  for (const h of historial) {
+    if (h.fecha_desde <= fecha && h.fecha_desde > mejorFecha) {
+      mejorFecha = h.fecha_desde;
+      precio = h.precio_unitario;
+    }
+  }
+  return precio;
+}
 
 /**
  * Resuelve el precio por punto aplicable a una tarea según su categoría (cable u obra civil).
