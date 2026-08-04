@@ -55,6 +55,27 @@ function diasDelMes(yyyyMm: string): number {
   return new Date(y, m, 0).getDate();
 }
 
+/** Día de la semana (0=domingo … 6=sábado) de una fecha 'YYYY-MM-DD', sin sesgo de zona horaria. */
+function diaSemana(fecha: string): number {
+  const [y, m, d] = fecha.split('-').map(Number);
+  return new Date(y, m - 1, d).getDay();
+}
+
+/** ¿Es día laborable (lunes a viernes)? */
+function esLaborable(fecha: string): boolean {
+  const dow = diaSemana(fecha);
+  return dow >= 1 && dow <= 5;
+}
+
+/** Número de días laborables (L-V) del mes indicado (formato 'YYYY-MM'). */
+function diasLaborablesDelMes(yyyyMm: string): number {
+  let laborables = 0;
+  for (let d = 1; d <= diasDelMes(yyyyMm); d++) {
+    if (esLaborable(`${yyyyMm}-${String(d).padStart(2, '0')}`)) laborables++;
+  }
+  return laborables;
+}
+
 /**
  * ¿La fecha ('YYYY-MM-DD') cae dentro de la ventana de vigencia del gasto?
  * Un gasto sin `fecha_fin` se considera en curso (vigente desde su fecha en adelante).
@@ -66,40 +87,21 @@ function gastoVigente(g: Gasto, fecha: string): boolean {
 }
 
 /**
- * Días naturales que el gasto estuvo activo dentro de un mes concreto: la intersección de
- * su vigencia [fecha, fecha_fin] con el mes. Base del prorrateo de los gastos mensuales.
- */
-function diasActivosEnMes(g: Gasto, yyyyMm: string): number {
-  const primerDia = `${yyyyMm}-01`;
-  const ultimoDia = `${yyyyMm}-${String(diasDelMes(yyyyMm)).padStart(2, '0')}`;
-  const desde = g.fecha > primerDia ? g.fecha : primerDia;
-  const hasta = g.fecha_fin && g.fecha_fin < ultimoDia ? g.fecha_fin : ultimoDia;
-  if (desde > hasta) return 0;
-  const ms = new Date(`${hasta}T00:00:00`).getTime() - new Date(`${desde}T00:00:00`).getTime();
-  return Math.round(ms / 86_400_000) + 1; // inclusivo en ambos extremos
-}
-
-/**
- * Coste de un gasto mensual imputado a un parte concreto, prorrateado por días naturales.
+ * Coste de un gasto mensual imputado a un parte concreto, mediante una tasa diaria estable.
  *
- * El importe mensual se prorratea por la fracción del mes en que el gasto estuvo activo
- * (importe × días activos / días del mes) y ese total del mes se reparte a partes iguales
- * entre los partes de la brigada de ese mes que caen dentro de la vigencia del gasto. Así el
- * coste del mes equivale a "lo realmente gastado" —medio mes de alta es medio sueldo, con
- * independencia de cuántos partes se registren— y cada parte recibe su cuota para el desglose
- * diario. Sumar la cuota de todos los partes del mes reconstruye el coste mensual prorrateado.
+ * La tasa es fija para el mes: importe / días laborables (L-V) del mes. Cada parte laborable
+ * dentro de la vigencia [fecha, fecha_fin] recibe esa tasa; los fines de semana no imputan
+ * sueldo. Así un mes laborable completo suma el importe íntegro, media vigencia imputa la
+ * mitad, y —a diferencia de repartir entre los partes ya registrados— el valor diario NO
+ * depende de cuántos partes existan: es idéntico el día 1 que el día 20, sin disparos al
+ * cambiar de mes.
  */
-export function costeMensualGastoEnParte(g: Gasto, parte: ParteTrabajo, partesBrigada: ParteTrabajo[]): number {
+export function costeMensualGastoEnParte(g: Gasto, parte: ParteTrabajo): number {
   if (!gastoVigente(g, parte.fecha)) return 0;
-  const yyyyMm = parte.fecha.substring(0, 7);
-  const diasActivos = diasActivosEnMes(g, yyyyMm);
-  if (diasActivos <= 0) return 0;
-  const costeMes = g.importe * (diasActivos / diasDelMes(yyyyMm));
-  const partesDelMes = partesBrigada.filter(
-    p => p.fecha.substring(0, 7) === yyyyMm && gastoVigente(g, p.fecha)
-  ).length;
-  if (partesDelMes === 0) return 0;
-  return costeMes / partesDelMes;
+  if (!esLaborable(parte.fecha)) return 0;
+  const laborables = diasLaborablesDelMes(parte.fecha.substring(0, 7));
+  if (laborables === 0) return 0;
+  return g.importe / laborables;
 }
 
 export interface PerformanceMetrics {
@@ -124,10 +126,7 @@ export function calculateParteMetrics(
   gastos: Gasto[],
   config: AppConfig,
   recursos: Recurso[],
-  tipoObra?: 'metro' | 'tarea',
-  // Partes de referencia para prorratear los gastos mensuales entre los días del mes.
-  // Por defecto solo este parte, lo que carga el mes íntegro sobre él si no se aporta el resto.
-  allPartes: ParteTrabajo[] = [parte]
+  tipoObra?: 'metro' | 'tarea'
 ): PerformanceMetrics {
   const umbralVerde = config.umbral_verde;
   const umbralAzul = config.umbral_azul;
@@ -169,8 +168,6 @@ export function calculateParteMetrics(
   }
 
   // Gastos manuales de la brigada imputados a este parte según su tipo de coste.
-  const partesBrigada = allPartes.filter(p => p.brigada_id === parte.brigada_id);
-
   // Único: se imputa íntegro el día exacto del gasto.
   const unicos = gastos.filter(
     g => g.fecha === parte.fecha && g.brigada_id === parte.brigada_id && (!g.tipo_coste || g.tipo_coste === 'unico')
@@ -184,8 +181,8 @@ export function calculateParteMetrics(
   );
 
   const totalUnicos = unicos.reduce((sum, g) => sum + g.importe, 0);
-  // El mensual se prorratea por días naturales activos y se reparte entre los partes del mes.
-  const totalMensuales = mensuales.reduce((sum, g) => sum + costeMensualGastoEnParte(g, parte, partesBrigada), 0);
+  // El mensual se imputa como tasa diaria estable (importe / días laborables del mes).
+  const totalMensuales = mensuales.reduce((sum, g) => sum + costeMensualGastoEnParte(g, parte), 0);
   const totalDiarios = diarios.reduce((sum, g) => sum + g.importe, 0);
 
   const manualExpenses = totalUnicos + totalMensuales + totalDiarios;
@@ -303,9 +300,9 @@ export function calculateBrigadePeriodMetrics(
     // Prorrateo de recursos del mes (fijo 20 días laborables)
     imputedExpenses += (resourceBaseCost / 20);
 
-    // Gastos mensuales: prorrateados por días naturales activos y repartidos entre los partes del mes.
+    // Gastos mensuales: tasa diaria estable (importe / días laborables del mes) por jornada vigente.
     mensualesBrigada.forEach(g => {
-      imputedExpenses += costeMensualGastoEnParte(g, p, partesBrigada);
+      imputedExpenses += costeMensualGastoEnParte(g, p);
     });
 
     // Gastos diarios: coste fijo por jornada dentro de su ventana de vigencia.

@@ -115,7 +115,7 @@ export default function DashboardView() {
 
   const chartDataPoints = partesFiltradosParaGrafico.map(p => {
     const metrics = config
-      ? calculateParteMetrics(p, gastos, config, recursos, currentObra?.tipo, partes)
+      ? calculateParteMetrics(p, gastos, config, recursos, currentObra?.tipo)
       : null;
 
     return {

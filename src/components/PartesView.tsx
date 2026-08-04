@@ -565,7 +565,7 @@ export default function PartesView() {
         
         {filteredPartes.map(parte => {
           // Calcular rendimiento y semáforo en tiempo real para este parte diario
-          const metrics = config ? calculateParteMetrics(parte, gastos, config, recursos, currentObra?.tipo, partes) : null;
+          const metrics = config ? calculateParteMetrics(parte, gastos, config, recursos, currentObra?.tipo) : null;
           
           return (
             <div
