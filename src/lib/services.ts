@@ -389,9 +389,16 @@ export const Services = {
           if (config.precio_punto_obra_civil === undefined || config.precio_punto_obra_civil === null) {
             config.precio_punto_obra_civil = config.precio_punto ?? 0.00;
           }
+          // Presupuesto de puntos: por defecto 0 (sin presupuesto) si aún no existe.
+          if (config.puntos_totales_cable === undefined || config.puntos_totales_cable === null) {
+            config.puntos_totales_cable = 0.00;
+          }
+          if (config.puntos_totales_obra_civil === undefined || config.puntos_totales_obra_civil === null) {
+            config.puntos_totales_obra_civil = 0.00;
+          }
           return config;
         }
-        
+
         // Si no existe configuración para esta obra, creamos una por defecto
         const newConf = {
           obra_id: obraId,
@@ -402,7 +409,9 @@ export const Services = {
           puntos_objetivo_dia: defaultPuntos,
           precio_punto: 0.00,
           precio_punto_cable: 0.00,
-          precio_punto_obra_civil: 0.00
+          precio_punto_obra_civil: 0.00,
+          puntos_totales_cable: 0.00,
+          puntos_totales_obra_civil: 0.00
         };
         const { data: created, error: err } = await supabase.from('config').insert(newConf).select().single();
         if (!err && created) return created as AppConfig;
@@ -423,7 +432,9 @@ export const Services = {
         puntos_objetivo_dia: defaultPuntos,
         precio_punto: 0.00,
         precio_punto_cable: 0.00,
-        precio_punto_obra_civil: 0.00
+        precio_punto_obra_civil: 0.00,
+        puntos_totales_cable: 0.00,
+        puntos_totales_obra_civil: 0.00
       };
       db.configs.push(conf);
       saveLocalDB(db);
@@ -443,6 +454,14 @@ export const Services = {
       }
       if (conf.precio_punto_obra_civil === undefined || conf.precio_punto_obra_civil === null) {
         conf.precio_punto_obra_civil = conf.precio_punto ?? 0.00;
+        needsSave = true;
+      }
+      if (conf.puntos_totales_cable === undefined || conf.puntos_totales_cable === null) {
+        conf.puntos_totales_cable = 0.00;
+        needsSave = true;
+      }
+      if (conf.puntos_totales_obra_civil === undefined || conf.puntos_totales_obra_civil === null) {
+        conf.puntos_totales_obra_civil = 0.00;
         needsSave = true;
       }
       if (needsSave) {
@@ -485,6 +504,8 @@ export const Services = {
         precio_punto: 0.00,
         precio_punto_cable: 0.00,
         precio_punto_obra_civil: 0.00,
+        puntos_totales_cable: 0.00,
+        puntos_totales_obra_civil: 0.00,
         ...newConfig
       } as AppConfig;
       db.configs.push(newC);

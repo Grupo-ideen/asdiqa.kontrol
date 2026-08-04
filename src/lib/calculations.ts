@@ -44,6 +44,67 @@ export function tareaLineaTotals(linea: ParteLinea, config: AppConfig): TareaLin
   };
 }
 
+/** Avance de una categoría de la obra por tarea: puntos conseguidos frente al presupuesto. */
+export interface CategoriaProgress {
+  /** Puntos conseguidos acumulados (toda la obra). */
+  conseguidos: number;
+  /** Puntos presupuestados (lo que vale la obra en esta categoría). */
+  presupuesto: number;
+  /** Puntos que faltan para completar el presupuesto (nunca negativo). */
+  restantes: number;
+  /** Porcentaje cumplido (0 si no hay presupuesto definido). */
+  porcentaje: number;
+  /** Dinero ganado: puntos conseguidos × precio por punto (ingresos brutos). */
+  dinero: number;
+}
+
+export interface ObraProgress {
+  cable: CategoriaProgress;
+  obraCivil: CategoriaProgress;
+  total: CategoriaProgress;
+}
+
+/**
+ * Avance global de una obra por tarea: puntos conseguidos frente al presupuesto de puntos por
+ * categoría, porcentaje cumplido y dinero ganado (ingresos brutos = puntos × precio por punto).
+ *
+ * Se calcula sobre TODOS los partes recibidos (acumulado de la obra), no sobre un rango de
+ * fechas: refleja cuánto de la obra se lleva hecho hasta la fecha. Las tareas sin categoría se
+ * contabilizan como cable, igual que en el resto del cálculo de ingresos.
+ */
+export function calculateObraProgress(partes: ParteTrabajo[], config: AppConfig): ObraProgress {
+  let cableConseguidos = 0, cableDinero = 0;
+  let obraConseguidos = 0, obraDinero = 0;
+
+  partes.forEach(p => p.lineas?.forEach(l => {
+    const { puntos, revenue } = tareaLineaTotals(l, config);
+    if (l.partida_categoria === 'obra_civil') {
+      obraConseguidos += puntos;
+      obraDinero += revenue;
+    } else {
+      cableConseguidos += puntos;
+      cableDinero += revenue;
+    }
+  }));
+
+  const mk = (conseguidos: number, presupuesto: number, dinero: number): CategoriaProgress => ({
+    conseguidos,
+    presupuesto,
+    restantes: Math.max(0, presupuesto - conseguidos),
+    porcentaje: presupuesto > 0 ? (conseguidos / presupuesto) * 100 : 0,
+    dinero
+  });
+
+  const cablePresup = config.puntos_totales_cable ?? 0;
+  const obraPresup = config.puntos_totales_obra_civil ?? 0;
+
+  return {
+    cable: mk(cableConseguidos, cablePresup, cableDinero),
+    obraCivil: mk(obraConseguidos, obraPresup, obraDinero),
+    total: mk(cableConseguidos + obraConseguidos, cablePresup + obraPresup, cableDinero + obraDinero)
+  };
+}
+
 // ==========================================
 // PRORRATEO DE GASTOS PERIÓDICOS
 // ==========================================

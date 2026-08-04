@@ -117,6 +117,8 @@ export interface AppConfig {
   precio_punto?: number; // legacy: precio único por punto (fallback para las categorías)
   precio_punto_cable?: number; // € por punto en tareas de cable
   precio_punto_obra_civil?: number; // € por punto en tareas de obra civil
+  puntos_totales_cable?: number; // presupuesto de puntos de la obra en tareas de cable
+  puntos_totales_obra_civil?: number; // presupuesto de puntos de la obra en tareas de obra civil
 }
 
 export interface Recurso {

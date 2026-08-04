@@ -25,6 +25,8 @@ export default function ConfigView() {
   const [puntosObjetivoDia, setPuntosObjetivoDia] = useState(config?.puntos_objetivo_dia && config.puntos_objetivo_dia !== 10 ? config.puntos_objetivo_dia : (currentObra?.tipo === 'tarea' ? 27 : 10));
   const [precioPuntoCable, setPrecioPuntoCable] = useState(config?.precio_punto_cable ?? config?.precio_punto ?? 0);
   const [precioPuntoObraCivil, setPrecioPuntoObraCivil] = useState(config?.precio_punto_obra_civil ?? config?.precio_punto ?? 0);
+  const [puntosTotalesCable, setPuntosTotalesCable] = useState(config?.puntos_totales_cable ?? 0);
+  const [puntosTotalesObraCivil, setPuntosTotalesObraCivil] = useState(config?.puntos_totales_obra_civil ?? 0);
   const [configSaving, setConfigSaving] = useState(false);
   const [configMsg, setConfigMsg] = useState('');
 
@@ -51,10 +53,14 @@ export default function ConfigView() {
       setPuntosObjetivoDia(config.puntos_objetivo_dia && config.puntos_objetivo_dia !== 10 ? config.puntos_objetivo_dia : (currentObra?.tipo === 'tarea' ? 27 : 10));
       setPrecioPuntoCable(config.precio_punto_cable ?? config.precio_punto ?? 0);
       setPrecioPuntoObraCivil(config.precio_punto_obra_civil ?? config.precio_punto ?? 0);
+      setPuntosTotalesCable(config.puntos_totales_cable ?? 0);
+      setPuntosTotalesObraCivil(config.puntos_totales_obra_civil ?? 0);
     } else {
       setPuntosObjetivoDia(currentObra?.tipo === 'tarea' ? 27 : 10);
       setPrecioPuntoCable(0);
       setPrecioPuntoObraCivil(0);
+      setPuntosTotalesCable(0);
+      setPuntosTotalesObraCivil(0);
     }
     if (!selectedPartida) {
       setPartidaUnidad(currentObra?.tipo === 'tarea' ? 'ud' : 'm');
@@ -309,7 +315,9 @@ export default function ConfigView() {
         // El precio_punto legacy se mantiene sincronizado con el de cable como fallback.
         precio_punto: Number(precioPuntoCable),
         precio_punto_cable: Number(precioPuntoCable),
-        precio_punto_obra_civil: Number(precioPuntoObraCivil)
+        precio_punto_obra_civil: Number(precioPuntoObraCivil),
+        puntos_totales_cable: roundPuntos(Number(puntosTotalesCable)),
+        puntos_totales_obra_civil: roundPuntos(Number(puntosTotalesObraCivil))
       });
       setConfigMsg('Configuración guardada correctamente.');
       await refreshAll();
@@ -662,6 +670,38 @@ export default function ConfigView() {
                   </div>
                   <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', margin: '0.75rem 0 0' }}>
                     Cada tarea se clasifica como cable u obra civil y sus puntos se valoran con el precio correspondiente.
+                  </p>
+                </fieldset>
+                <fieldset style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', padding: '1rem', margin: 0 }}>
+                  <legend style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em', padding: '0 0.4rem' }}>
+                    Presupuesto de puntos de la obra
+                  </legend>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                    <div>
+                      <label htmlFor="puntos-totales-cable">Cable (puntos totales):</label>
+                      <input
+                        type="number"
+                        id="puntos-totales-cable"
+                        value={puntosTotalesCable}
+                        onChange={e => setPuntosTotalesCable(Number(e.target.value))}
+                        min="0"
+                        step="any"
+                      />
+                    </div>
+                    <div>
+                      <label htmlFor="puntos-totales-obra-civil">Obra civil (puntos totales):</label>
+                      <input
+                        type="number"
+                        id="puntos-totales-obra-civil"
+                        value={puntosTotalesObraCivil}
+                        onChange={e => setPuntosTotalesObraCivil(Number(e.target.value))}
+                        min="0"
+                        step="any"
+                      />
+                    </div>
+                  </div>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', margin: '0.75rem 0 0' }}>
+                    Cuánto vale la obra en total por categoría. El dashboard mostrará el avance: puntos conseguidos, porcentaje cumplido y dinero ganado. Déjalo a 0 si no quieres presupuesto.
                   </p>
                 </fieldset>
               </>

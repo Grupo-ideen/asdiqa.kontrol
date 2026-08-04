@@ -24,6 +24,8 @@ CREATE TABLE IF NOT EXISTS obras (
 -- ALTER TABLE config ALTER COLUMN puntos_objetivo_dia TYPE NUMERIC(12, 4);
 -- ALTER TABLE gastos ADD COLUMN IF NOT EXISTS fecha_fin DATE;
 -- ALTER TABLE gastos ADD CONSTRAINT gastos_fecha_fin_coherente CHECK (fecha_fin IS NULL OR fecha_fin >= fecha);
+-- ALTER TABLE config ADD COLUMN IF NOT EXISTS puntos_totales_cable NUMERIC(12, 4) NOT NULL DEFAULT 0.0000;
+-- ALTER TABLE config ADD COLUMN IF NOT EXISTS puntos_totales_obra_civil NUMERIC(12, 4) NOT NULL DEFAULT 0.0000;
 
 -- 1. Tabla de Usuarios y Roles
 CREATE TABLE IF NOT EXISTS usuarios (
@@ -122,7 +124,9 @@ CREATE TABLE IF NOT EXISTS config (
     puntos_objetivo_dia NUMERIC(12, 4) NOT NULL DEFAULT 27.0000, -- hasta 4 decimales
     precio_punto NUMERIC(12, 2) NOT NULL DEFAULT 0.00, -- legacy: precio único por punto (fallback)
     precio_punto_cable NUMERIC(12, 2) NOT NULL DEFAULT 0.00, -- € por punto para tareas de cable
-    precio_punto_obra_civil NUMERIC(12, 2) NOT NULL DEFAULT 0.00 -- € por punto para tareas de obra civil
+    precio_punto_obra_civil NUMERIC(12, 2) NOT NULL DEFAULT 0.00, -- € por punto para tareas de obra civil
+    puntos_totales_cable NUMERIC(12, 4) NOT NULL DEFAULT 0.0000, -- presupuesto de puntos de la obra (cable)
+    puntos_totales_obra_civil NUMERIC(12, 4) NOT NULL DEFAULT 0.0000 -- presupuesto de puntos de la obra (obra civil)
 );
 
 -- Crear índices para optimizar búsquedas frecuentes

@@ -2,9 +2,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { useApp } from '@/lib/AppContext';
-import { calculateBrigadePeriodMetrics, calculateParteMetrics } from '@/lib/calculations';
+import { calculateBrigadePeriodMetrics, calculateParteMetrics, calculateObraProgress } from '@/lib/calculations';
 import { formatPuntos, roundPuntos } from '@/lib/format';
 import PerformanceTrafficLight from './PerformanceTrafficLight';
+import ObraProgressPanel from './ObraProgressPanel';
 
 export default function DashboardView() {
   const { partes, gastos, brigadas, recursos, config, setSection, setSelectedBrigadaFilter, currentObra } = useApp();
@@ -46,6 +47,9 @@ export default function DashboardView() {
   const [selectedBrigadaId, setSelectedBrigadaId] = useState('');
 
   const isTarea = currentObra?.tipo === 'tarea';
+
+  // Avance acumulado de la obra por tarea (todos los partes, sin filtro de fechas).
+  const obraProgress = isTarea && config ? calculateObraProgress(partes, config) : null;
 
   // 1. Calcular métricas por cada brigada
   const brigadeMetricsList = brigadas.map(b => {
@@ -377,6 +381,13 @@ export default function DashboardView() {
           </select>
         </div>
       </div>
+
+      {/* AVANCE DE LA OBRA (solo obras por tarea con progreso acumulado) */}
+      {obraProgress && (
+        <div style={{ marginBottom: '2rem' }}>
+          <ObraProgressPanel progress={obraProgress} />
+        </div>
+      )}
 
       {/* TARJETAS DE MÉTRICAS CONSOLIDADAS GENERALES */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
