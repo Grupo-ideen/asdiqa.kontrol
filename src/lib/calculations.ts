@@ -185,6 +185,35 @@ export function costeMensualGastoEnParte(g: Gasto, parte: ParteTrabajo): number 
   return g.importe / laborables;
 }
 
+/** Coste diario (coste mensual / 20 días laborables) de un recurso. */
+function costeDiarioRecurso(r: Recurso): number {
+  const mensual = Number(r.sueldo || 0) + Number(r.seguridad_social || 0) + Number(r.alojamiento || 0) + Number(r.otros_costes || 0);
+  return mensual / 20;
+}
+
+/**
+ * Coste diario de los recursos de una brigada imputado a una jornada, escalado por operarios.
+ *
+ * La mano de obra (recursos de tipo 'trabajador') escala con los operarios presentes ese día:
+ * se toma el coste medio diario por trabajador de la brigada y se multiplica por `numPersonas`.
+ * Así una jornada con más operarios cuesta más y una con menos, menos. El resto de recursos
+ * (maquinaria, alojamiento, otros) es coste fijo y no depende del número de personas. Si la
+ * brigada no tiene trabajadores definidos, la mano de obra imputada es 0.
+ */
+function costeRecursosDiarioBrigada(recursos: Recurso[], brigadaId: string, numPersonas: number): number {
+  const propios = recursos.filter(r => r.brigada_id === brigadaId);
+  const trabajadores = propios.filter(r => r.tipo === 'trabajador');
+  const otros = propios.filter(r => r.tipo !== 'trabajador');
+
+  const costePorOperario = trabajadores.length > 0
+    ? trabajadores.reduce((sum, r) => sum + costeDiarioRecurso(r), 0) / trabajadores.length
+    : 0;
+  const manoObra = costePorOperario * Math.max(0, numPersonas);
+  const fijos = otros.reduce((sum, r) => sum + costeDiarioRecurso(r), 0);
+
+  return manoObra + fijos;
+}
+
 export interface PerformanceMetrics {
   revenue: number;
   /** Coste directo de las tareas ejecutadas. Siempre 0 en obras por metro. */
@@ -268,12 +297,8 @@ export function calculateParteMetrics(
 
   const manualExpenses = totalUnicos + totalMensuales + totalDiarios;
 
-  // 2. Costes de recursos imputados
-  const recursosBrigada = recursos.filter(r => r.brigada_id === parte.brigada_id);
-  const resourceDailyExpenses = recursosBrigada.reduce((sum, r) => {
-    const monthlyCost = Number(r.sueldo || 0) + Number(r.seguridad_social || 0) + Number(r.alojamiento || 0) + Number(r.otros_costes || 0);
-    return sum + (monthlyCost / 20); // Fijo 20 días laborables
-  }, 0);
+  // 2. Costes de recursos imputados; la mano de obra escala con los operarios del parte.
+  const resourceDailyExpenses = costeRecursosDiarioBrigada(recursos, parte.brigada_id, parte.num_personas);
 
   const imputedExpenses = manualExpenses + resourceDailyExpenses;
   const totalExpenses = imputedExpenses + taskExpenses;
@@ -366,20 +391,13 @@ export function calculateBrigadePeriodMetrics(
   );
   imputedExpenses = unicosPeriodo.reduce((sum, g) => sum + g.importe, 0);
 
-  // 2. Costes de recursos base mensuales
-  const recursosBrigada = recursos.filter(r => r.brigada_id === brigadaId);
-  const resourceBaseCost = recursosBrigada.reduce((sum, r) => {
-    const monthlyCost = Number(r.sueldo || 0) + Number(r.seguridad_social || 0) + Number(r.alojamiento || 0) + Number(r.otros_costes || 0);
-    return sum + monthlyCost;
-  }, 0);
-
-  // 3. Imputar costes periódicos por cada jornada trabajada (cada parte de trabajo del periodo)
+  // 2. Imputar costes periódicos por cada jornada trabajada (cada parte de trabajo del periodo)
   const mensualesBrigada = gastos.filter(g => g.brigada_id === brigadaId && g.tipo_coste === 'mensual');
   const diariosBrigada = gastos.filter(g => g.brigada_id === brigadaId && g.tipo_coste === 'diario');
 
   partesFiltrados.forEach(p => {
-    // Prorrateo de recursos del mes (fijo 20 días laborables)
-    imputedExpenses += (resourceBaseCost / 20);
+    // Recursos: la mano de obra escala con los operarios de ese parte; maquinaria/otros fijos.
+    imputedExpenses += costeRecursosDiarioBrigada(recursos, brigadaId, p.num_personas);
 
     // Gastos mensuales: tasa diaria estable (importe / días laborables del mes) por jornada vigente.
     mensualesBrigada.forEach(g => {
