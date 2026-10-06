@@ -170,16 +170,16 @@ function gastoVigente(g: Gasto, fecha: string): boolean {
 /**
  * Coste de un gasto mensual imputado a un parte concreto, mediante una tasa diaria estable.
  *
- * La tasa es fija para el mes: importe / días laborables (L-V) del mes. Cada parte laborable
- * dentro de la vigencia [fecha, fecha_fin] recibe esa tasa; los fines de semana no imputan
- * sueldo. Así un mes laborable completo suma el importe íntegro, media vigencia imputa la
- * mitad, y —a diferencia de repartir entre los partes ya registrados— el valor diario NO
- * depende de cuántos partes existan: es idéntico el día 1 que el día 20, sin disparos al
- * cambiar de mes.
+ * La tasa es fija para el mes: importe / días laborables (L-V) del mes. Cada parte dentro de
+ * la vigencia [fecha, fecha_fin] recibe esa tasa, sea cual sea el día de la semana: hay
+ * brigadas que trabajan en sábado y esa jornada también consume el gasto. Así un mes de L-V
+ * completo suma el importe íntegro (las jornadas extra de fin de semana imputan por encima),
+ * media vigencia imputa la mitad, y —a diferencia de repartir entre los partes ya
+ * registrados— el valor diario NO depende de cuántos partes existan: es idéntico el día 1
+ * que el día 20, sin disparos al cambiar de mes.
  */
 export function costeMensualGastoEnParte(g: Gasto, parte: ParteTrabajo): number {
   if (!gastoVigente(g, parte.fecha)) return 0;
-  if (!esLaborable(parte.fecha)) return 0;
   const laborables = diasLaborablesDelMes(parte.fecha.substring(0, 7));
   if (laborables === 0) return 0;
   return g.importe / laborables;
