@@ -250,6 +250,17 @@ function saveLocalDB(db: DatabaseSchema) {
   }
 }
 
+// Código de Postgres para la violación de una restricción UNIQUE.
+const POSTGRES_UNIQUE_VIOLATION = '23505';
+
+/** El código de la partida ya está en uso dentro de su obra (UNIQUE (codigo, obra_id)). */
+export class PartidaCodigoDuplicadoError extends Error {
+  constructor(public readonly codigo: string) {
+    super(`Ya existe una partida con el código ${codigo} en esta obra.`);
+    this.name = 'PartidaCodigoDuplicadoError';
+  }
+}
+
 /**
  * Carga el historial de precios de las partidas indicadas como mapa partida_id -> tarifas.
  *
@@ -672,8 +683,14 @@ export const Services = {
           .upsert(dbPartida)
           .select()
           .single();
+        // El upsert solo resuelve conflictos por id: un código repetido en la obra se rechaza.
+        // Caer a local aquí daría un falso éxito, porque la lista se recarga desde Supabase.
+        if (error?.code === POSTGRES_UNIQUE_VIOLATION) {
+          throw new PartidaCodigoDuplicadoError(partidaData.codigo);
+        }
         if (!error && data) return data as Partida;
       } catch (e) {
+        if (e instanceof PartidaCodigoDuplicadoError) throw e;
         console.error('Error al guardar partida en Supabase, usando local:', e);
       }
     }

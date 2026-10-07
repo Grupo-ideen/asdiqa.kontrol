@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { useApp } from '@/lib/AppContext';
-import { Services } from '@/lib/services';
+import { Services, PartidaCodigoDuplicadoError } from '@/lib/services';
 import { precioPuntoCategoria } from '@/lib/calculations';
 import { PUNTOS_DECIMALES, formatPuntos, roundPuntos } from '@/lib/format';
 import { Partida, Brigada, Usuario, Recurso, Obra, CategoriaTarea } from '@/lib/types';
@@ -358,6 +358,11 @@ export default function ConfigView() {
       await refreshAll();
       showToast(currentObra?.tipo === 'tarea' ? 'Tarea guardada correctamente.' : 'Partida guardada correctamente.', 'success');
     } catch (err) {
+      if (err instanceof PartidaCodigoDuplicadoError) {
+        const tipoElemento = currentObra?.tipo === 'tarea' ? 'una tarea' : 'una partida';
+        showToast(`Ya existe ${tipoElemento} con el código ${err.codigo} en esta obra. Edítala o usa otro código.`, 'error');
+        return;
+      }
       console.error(err);
       showToast(currentObra?.tipo === 'tarea' ? 'Error al guardar tarea.' : 'Error al guardar partida.', 'error');
     }
