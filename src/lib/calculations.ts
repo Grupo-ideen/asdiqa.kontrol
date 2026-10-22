@@ -129,33 +129,8 @@ export function calculateObraProgress(partes: ParteTrabajo[], config: AppConfig)
 // PRORRATEO DE GASTOS PERIÓDICOS
 // ==========================================
 
-/** Número de días naturales del mes indicado (formato 'YYYY-MM'). */
-function diasDelMes(yyyyMm: string): number {
-  const [y, m] = yyyyMm.split('-').map(Number);
-  // El día 0 del mes siguiente es el último día de este mes.
-  return new Date(y, m, 0).getDate();
-}
-
-/** Día de la semana (0=domingo … 6=sábado) de una fecha 'YYYY-MM-DD', sin sesgo de zona horaria. */
-function diaSemana(fecha: string): number {
-  const [y, m, d] = fecha.split('-').map(Number);
-  return new Date(y, m - 1, d).getDay();
-}
-
-/** ¿Es día laborable (lunes a viernes)? */
-function esLaborable(fecha: string): boolean {
-  const dow = diaSemana(fecha);
-  return dow >= 1 && dow <= 5;
-}
-
-/** Número de días laborables (L-V) del mes indicado (formato 'YYYY-MM'). */
-function diasLaborablesDelMes(yyyyMm: string): number {
-  let laborables = 0;
-  for (let d = 1; d <= diasDelMes(yyyyMm); d++) {
-    if (esLaborable(`${yyyyMm}-${String(d).padStart(2, '0')}`)) laborables++;
-  }
-  return laborables;
-}
+/** Días entre los que se reparte un gasto mensual para obtener su tasa diaria. */
+const DIAS_PRORRATEO_GASTO_MENSUAL = 30;
 
 /**
  * ¿La fecha ('YYYY-MM-DD') cae dentro de la ventana de vigencia del gasto?
@@ -170,19 +145,15 @@ function gastoVigente(g: Gasto, fecha: string): boolean {
 /**
  * Coste de un gasto mensual imputado a un parte concreto, mediante una tasa diaria estable.
  *
- * La tasa es fija para el mes: importe / días laborables (L-V) del mes. Cada parte dentro de
- * la vigencia [fecha, fecha_fin] recibe esa tasa, sea cual sea el día de la semana: hay
- * brigadas que trabajan en sábado y esa jornada también consume el gasto. Así un mes de L-V
- * completo suma el importe íntegro (las jornadas extra de fin de semana imputan por encima),
- * media vigencia imputa la mitad, y —a diferencia de repartir entre los partes ya
- * registrados— el valor diario NO depende de cuántos partes existan: es idéntico el día 1
- * que el día 20, sin disparos al cambiar de mes.
+ * La tasa es fija: importe / 30. Cada parte dentro de la vigencia [fecha, fecha_fin] recibe
+ * esa tasa, sea cual sea el día de la semana: hay brigadas que trabajan en sábado y esa
+ * jornada también consume el gasto. A diferencia de repartir entre los partes ya
+ * registrados, el valor diario NO depende de cuántos partes existan ni del mes: es idéntico
+ * el día 1 que el día 20, sin disparos al cambiar de mes.
  */
 export function costeMensualGastoEnParte(g: Gasto, parte: ParteTrabajo): number {
   if (!gastoVigente(g, parte.fecha)) return 0;
-  const laborables = diasLaborablesDelMes(parte.fecha.substring(0, 7));
-  if (laborables === 0) return 0;
-  return g.importe / laborables;
+  return g.importe / DIAS_PRORRATEO_GASTO_MENSUAL;
 }
 
 /** Coste diario (coste mensual / 20 días laborables) de un recurso. */
@@ -291,7 +262,7 @@ export function calculateParteMetrics(
   );
 
   const totalUnicos = unicos.reduce((sum, g) => sum + g.importe, 0);
-  // El mensual se imputa como tasa diaria estable (importe / días laborables del mes).
+  // El mensual se imputa como tasa diaria estable (importe / 30).
   const totalMensuales = mensuales.reduce((sum, g) => sum + costeMensualGastoEnParte(g, parte), 0);
   const totalDiarios = diarios.reduce((sum, g) => sum + g.importe, 0);
 
@@ -399,7 +370,7 @@ export function calculateBrigadePeriodMetrics(
     // Recursos: la mano de obra escala con los operarios de ese parte; maquinaria/otros fijos.
     imputedExpenses += costeRecursosDiarioBrigada(recursos, brigadaId, p.num_personas);
 
-    // Gastos mensuales: tasa diaria estable (importe / días laborables del mes) por jornada vigente.
+    // Gastos mensuales: tasa diaria estable (importe / 30) por jornada vigente.
     mensualesBrigada.forEach(g => {
       imputedExpenses += costeMensualGastoEnParte(g, p);
     });
