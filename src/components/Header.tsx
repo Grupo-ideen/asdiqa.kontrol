@@ -42,7 +42,7 @@ export default function Header({ currentSection, setSection }: HeaderProps) {
   };
 
   return (
-    <>
+    <div className="app-header-sticky">
       <header className="app-header">
         {/* Marca */}
         <div className="header-brand-wrapper">
@@ -275,6 +275,6 @@ export default function Header({ currentSection, setSection }: HeaderProps) {
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }

@@ -394,10 +394,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       {/* Toast Notification Minimalista */}
       {toast && (
         <div
+          // Shown as a popover so it renders in the top layer, above any open modal <dialog>.
+          popover="manual"
+          ref={el => {
+            if (el && !el.matches(':popover-open')) el.showPopover();
+          }}
           style={{
             position: 'fixed',
+            top: 'auto',
+            right: 'auto',
             bottom: '2rem',
             left: '2rem',
+            margin: 0,
             zIndex: 9999,
             backgroundColor: toast.type === 'error' ? 'var(--status-red-bg)' : 'var(--accent)',
             color: toast.type === 'error' ? 'var(--status-red)' : 'var(--accent-foreground)',

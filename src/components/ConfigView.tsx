@@ -6,6 +6,7 @@ import { Services, PartidaCodigoDuplicadoError } from '@/lib/services';
 import { precioPuntoCategoria } from '@/lib/calculations';
 import { PUNTOS_DECIMALES, formatPuntos, roundPuntos } from '@/lib/format';
 import { Partida, Brigada, Usuario, Recurso, Obra, CategoriaTarea } from '@/lib/types';
+import Modal from './Modal';
 
 // Función auxiliar externa para evitar errores de pureza en el render de React
 const generateUniqueId = (prefix: string) => `${prefix}-${Date.now()}`;
@@ -13,9 +14,21 @@ const generateUniqueId = (prefix: string) => `${prefix}-${Date.now()}`;
 const currencyFormatter = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' });
 const formatCurrency = (value: number) => currencyFormatter.format(value);
 
+type ConfigForm = 'partida' | 'csv' | 'brigada' | 'usuario' | 'recurso' | 'obra';
+
+function SectionToolbar({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '0.5rem' }}>
+      <h2 style={{ fontSize: '1.1rem', margin: 0 }}>{title}</h2>
+      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>{children}</div>
+    </div>
+  );
+}
+
 export default function ConfigView() {
   const { config, partidas, brigadas, usuarios, recursos, refreshAll, showToast, currentObra, obras, showConfirm } = useApp();
   const [activeTab, setActiveTab] = useState<'umbrales' | 'partidas' | 'brigadas' | 'usuarios' | 'recursos' | 'obras'>('umbrales');
+  const [openForm, setOpenForm] = useState<ConfigForm | null>(null);
 
   // Estado para umbrales
   const [rendDefault, setRendDefault] = useState(config?.rendimiento_default || 100);
@@ -99,6 +112,7 @@ export default function ConfigView() {
       await Services.saveUsuario(uData);
       setSelectedUsuario(null);
       resetUsuarioForm();
+      setOpenForm(null);
       await refreshAll();
       showToast('Usuario guardado correctamente.', 'success');
     } catch (err) {
@@ -113,6 +127,7 @@ export default function ConfigView() {
     setUsuarioUsername(u.username);
     setUsuarioRol(u.rol);
     setUsuarioPassword(u.password || '');
+    setOpenForm('usuario');
   };
 
   const handleDeleteUsuario = (id: string) => {
@@ -177,10 +192,8 @@ export default function ConfigView() {
         tipo: obraTipo
       };
       await Services.saveObra(oData);
-      setSelectedObra(null);
-      setObraNombre('');
-      setObraDesc('');
-      setObraTipo('metro');
+      resetObraForm();
+      setOpenForm(null);
       await refreshAll();
       showToast('Obra guardada correctamente.', 'success');
     } catch (err) {
@@ -194,6 +207,14 @@ export default function ConfigView() {
     setObraNombre(o.nombre);
     setObraDesc(o.descripcion || '');
     setObraTipo(o.tipo || 'metro');
+    setOpenForm('obra');
+  };
+
+  const resetObraForm = () => {
+    setSelectedObra(null);
+    setObraNombre('');
+    setObraDesc('');
+    setObraTipo('metro');
   };
 
   const handleDeleteObra = (id: string) => {
@@ -262,6 +283,7 @@ export default function ConfigView() {
       await Services.saveRecurso(rData);
       setSelectedRecurso(null);
       resetRecursoForm();
+      setOpenForm(null);
       await refreshAll();
       showToast('Recurso guardado correctamente.', 'success');
     } catch (err) {
@@ -279,6 +301,7 @@ export default function ConfigView() {
     setRecursoAlojamiento(r.alojamiento);
     setRecursoOtros(r.otros_costes);
     setRecursoBrigadaId(r.brigada_id || '');
+    setOpenForm('recurso');
   };
 
   const handleDeleteRecurso = (id: string) => {
@@ -355,6 +378,7 @@ export default function ConfigView() {
       await Services.savePartida(pData);
       setSelectedPartida(null);
       resetPartidaForm();
+      setOpenForm(null);
       await refreshAll();
       showToast(currentObra?.tipo === 'tarea' ? 'Tarea guardada correctamente.' : 'Partida guardada correctamente.', 'success');
     } catch (err) {
@@ -378,6 +402,7 @@ export default function ConfigView() {
     setPartidaRend(p.rendimiento_objetivo || '');
     setPartidaCategoria(p.categoria || 'cable');
     setPartidaCoste(p.coste_unitario || 0);
+    setOpenForm('partida');
   };
 
   const handleDeletePartida = (id: string) => {
@@ -537,6 +562,7 @@ export default function ConfigView() {
       await Services.saveBrigada(bData);
       setSelectedBrigada(null);
       resetBrigadaForm();
+      setOpenForm(null);
       await refreshAll();
       showToast('Brigada guardada correctamente.', 'success');
     } catch (err) {
@@ -550,6 +576,7 @@ export default function ConfigView() {
     setBrigadaNombre(b.nombre);
     setBrigadaJefe(b.jefe_equipo_id || '');
     setBrigadaHabitual(b.num_personas_habitual);
+    setOpenForm('brigada');
   };
 
   const handleDeleteBrigada = (id: string) => {
@@ -568,6 +595,30 @@ export default function ConfigView() {
     setBrigadaNombre('');
     setBrigadaJefe('');
     setBrigadaHabitual(4);
+  };
+
+  const resetAllForms = () => {
+    resetPartidaForm();
+    resetBrigadaForm();
+    resetUsuarioForm();
+    resetRecursoForm();
+    resetObraForm();
+  };
+
+  const handleOpenNewForm = (form: ConfigForm) => {
+    resetAllForms();
+    setOpenForm(form);
+  };
+
+  const handleOpenCsvImport = () => {
+    setCsvError('');
+    setCsvSuccess('');
+    setOpenForm('csv');
+  };
+
+  const handleCloseForm = () => {
+    resetAllForms();
+    setOpenForm(null);
   };
 
   return (
@@ -661,7 +712,7 @@ export default function ConfigView() {
 
       {/* 1. TAB UMBRALES */}
       {activeTab === 'umbrales' && (
-        <div style={{ maxWidth: '600px', backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
+        <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
           <h2 style={{ fontSize: '1.15rem', marginBottom: '1rem' }}>Umbrales del Semáforo de Rendimiento</h2>
           <form onSubmit={handleSaveConfig} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
             {currentObra?.tipo === 'tarea' ? (
@@ -819,260 +870,16 @@ export default function ConfigView() {
 
       {/* 2. TAB PARTIDAS */}
       {activeTab === 'partidas' && (
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '2rem' }}>
-          {/* Formulario y CSV */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '1.5rem' }}>
-            <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
-              <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>
-                {selectedPartida 
-                  ? (currentObra?.tipo === 'tarea' ? 'Editar Tarea' : 'Editar Partida') 
-                  : (currentObra?.tipo === 'tarea' ? 'Nueva Tarea y Puntos' : 'Nueva Partida de Presupuesto')}
-              </h2>
-              <form onSubmit={handleSavePartida} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div>
-                  <label htmlFor="part-codigo">{currentObra?.tipo === 'tarea' ? 'Código Tarea (Único):' : 'Código Partida (Único):'}</label>
-                  <input
-                    type="text"
-                    id="part-codigo"
-                    value={partidaCodigo}
-                    onChange={e => setPartidaCodigo(e.target.value)}
-                    placeholder={currentObra?.tipo === 'tarea' ? "Tarea 1" : "04.02.01.05"}
-                    required
-                    disabled={!!selectedPartida}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="part-desc">{currentObra?.tipo === 'tarea' ? 'Nombre de la Tarea:' : 'Descripción:'}</label>
-                  <input
-                    type="text"
-                    id="part-desc"
-                    value={partidaDesc}
-                    onChange={e => setPartidaDesc(e.target.value)}
-                    placeholder={currentObra?.tipo === 'tarea' ? "Fusionado fibra" : "Tendido en zanja"}
-                    required
-                  />
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                  <div>
-                    <label htmlFor="part-unidad">Unidad (UD):</label>
-                    <input
-                      type="text"
-                      id="part-unidad"
-                      value={partidaUnidad}
-                      onChange={e => setPartidaUnidad(e.target.value)}
-                      placeholder="ud, m, etc."
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label htmlFor="part-precio">{currentObra?.tipo === 'tarea' ? 'Puntos Otorgados:' : 'Precio Unitario (€):'}</label>
-                    <input
-                      type="number"
-                      id="part-precio"
-                      value={partidaPrecio}
-                      onChange={e => setPartidaPrecio(Number(e.target.value))}
-                      step="any"
-                      min="0"
-                      required
-                      aria-describedby={currentObra?.tipo === 'tarea' ? 'part-precio-help' : undefined}
-                    />
-                    {currentObra?.tipo === 'tarea' && (
-                      <span id="part-precio-help" style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-                        Admite hasta {PUNTOS_DECIMALES} decimales (ej: 2,5625).
-                      </span>
-                    )}
-                  </div>
-                </div>
-                {currentObra?.tipo === 'tarea' && (
-                  <>
-                    <div>
-                      <label htmlFor="part-categoria">Clasificación de la tarea:</label>
-                      <select
-                        id="part-categoria"
-                        value={partidaCategoria}
-                        onChange={e => setPartidaCategoria(e.target.value as CategoriaTarea)}
-                        required
-                      >
-                        <option value="cable">Cable</option>
-                        <option value="obra_civil">Obra civil</option>
-                      </select>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-                        Determina el precio por punto aplicado (configurable en Semáforo y Umbrales).
-                      </span>
-                    </div>
-                    <div>
-                      <label htmlFor="part-coste">Gasto por tarea (€) — opcional:</label>
-                      <input
-                        type="number"
-                        id="part-coste"
-                        value={partidaCoste}
-                        onChange={e => setPartidaCoste(Number(e.target.value))}
-                        step="any"
-                        min="0"
-                        placeholder="0"
-                        aria-describedby="part-coste-help"
-                      />
-                      <span id="part-coste-help" style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-                        Coste que asume la obra cada vez que se realiza la tarea. Se imputa como gasto por cada unidad ejecutada y se resta del margen. Déjalo a 0 si la tarea no tiene coste.
-                        {partidaPrecio > 0 && partidaCoste > 0 && config && (
-                          <>
-                            {' '}Ahora: <strong>{formatCurrency(Number(partidaPrecio) * precioPuntoCategoria(config, partidaCategoria))}</strong> de ingreso
-                            {' '}− <strong>{formatCurrency(Number(partidaCoste))}</strong> de gasto
-                            {' '}= <strong>{formatCurrency(Number(partidaPrecio) * precioPuntoCategoria(config, partidaCategoria) - Number(partidaCoste))}</strong> por unidad.
-                          </>
-                        )}
-                      </span>
-                    </div>
-                  </>
-                )}
-                {currentObra?.tipo !== 'tarea' && (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                    <div>
-                      <label htmlFor="part-medicion">Medición Contrato:</label>
-                      <input
-                        type="number"
-                        id="part-medicion"
-                        value={partidaMedicion}
-                        onChange={e => setPartidaMedicion(Number(e.target.value))}
-                        min="0"
-                        required
-                      />
-                    </div>
-                    <div>
-                      <label htmlFor="part-rend">Objetivo (unidad/persona/día):</label>
-                      <input
-                        type="number"
-                        id="part-rend"
-                        value={partidaRend}
-                        onChange={e => setPartidaRend(e.target.value === '' ? '' : Number(e.target.value))}
-                        min="0"
-                        step="any"
-                        placeholder="Usa rendimiento de semáforo"
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* Historial de precios por fecha (solo obras por metro) */}
-                {currentObra?.tipo !== 'tarea' && !selectedPartida && (
-                  <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', margin: 0 }}>
-                    Podrás programar cambios de precio por fecha una vez creada la partida.
-                  </p>
-                )}
-                {currentObra?.tipo !== 'tarea' && selectedPartida && (() => {
-                  const historial = (partidas.find(p => p.id === selectedPartida.id)?.precios_historial ?? [])
-                    .slice()
-                    .sort((a, b) => a.fecha_desde.localeCompare(b.fecha_desde));
-                  return (
-                    <fieldset style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', padding: '1rem', margin: 0 }}>
-                      <legend style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em', padding: '0 0.4rem' }}>
-                        Cambios de precio por fecha
-                      </legend>
-                      <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', margin: '0 0 0.75rem' }}>
-                        Precio base <strong>{formatCurrency(Number(partidaPrecio))}/{partidaUnidad}</strong> desde el inicio. Cada parte cobra el precio vigente en su fecha; los partes anteriores a un cambio no se modifican.
-                      </p>
-                      {historial.length > 0 && (
-                        <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
-                          {historial.map(h => (
-                            <li key={h.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.85rem' }}>
-                              <span>Desde <strong>{h.fecha_desde}</strong>: <strong>{formatCurrency(h.precio_unitario)}</strong>/{partidaUnidad}</span>
-                              <button type="button" onClick={() => handleDeletePrecio(h.id)} className="danger" style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}>
-                                Eliminar
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.5rem', alignItems: 'end' }}>
-                        <div>
-                          <label htmlFor="nuevo-precio-fecha" style={{ fontSize: '0.75rem' }}>A partir del:</label>
-                          <input
-                            type="date"
-                            id="nuevo-precio-fecha"
-                            value={nuevoPrecioFecha}
-                            onChange={e => setNuevoPrecioFecha(e.target.value)}
-                          />
-                        </div>
-                        <div>
-                          <label htmlFor="nuevo-precio-valor" style={{ fontSize: '0.75rem' }}>Nuevo precio (€):</label>
-                          <input
-                            type="number"
-                            id="nuevo-precio-valor"
-                            value={nuevoPrecioValor}
-                            onChange={e => setNuevoPrecioValor(e.target.value === '' ? '' : Number(e.target.value))}
-                            min="0"
-                            step="0.01"
-                            placeholder="2.50"
-                          />
-                        </div>
-                        <button type="button" onClick={handleAddPrecio} style={{ fontSize: '0.8rem' }}>
-                          Añadir
-                        </button>
-                      </div>
-                    </fieldset>
-                  );
-                })()}
-
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <button type="submit" className="primary">
-                    {selectedPartida ? 'Actualizar' : 'Crear'}
-                  </button>
-                  {selectedPartida && (
-                    <button type="button" onClick={resetPartidaForm}>
-                      Cancelar
-                    </button>
-                  )}
-                </div>
-              </form>
-            </div>
-
-            {/* CSV Import */}
-            <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-              <div>
-                <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>Importación Masiva (CSV)</h2>
-                <p style={{ fontSize: '0.85rem' }}>
-                  {currentObra?.tipo === 'tarea'
-                    ? 'Sube un archivo CSV (.csv) con las tareas de obra y sus puntos. Las columnas categoria y coste son opcionales.'
-                    : 'Sube un archivo de Excel exportado a CSV (.csv) con las partidas del presupuesto.'}
-                </p>
-                {currentObra?.tipo === 'tarea' ? (
-                  <div style={{ fontSize: '0.75rem', backgroundColor: 'var(--bg-tertiary)', padding: '0.75rem', borderRadius: '4px', fontFamily: 'monospace', marginBottom: '1rem', whiteSpace: 'pre-wrap' }}>
-                    codigo,descripcion,unidad,puntos,categoria,coste
-                    T-01,&quot;Fusionado de fibra&quot;,ud,2.5,cable,12.50
-                  </div>
-                ) : (
-                  <div style={{ fontSize: '0.75rem', backgroundColor: 'var(--bg-tertiary)', padding: '0.75rem', borderRadius: '4px', fontFamily: 'monospace', marginBottom: '1rem', whiteSpace: 'pre-wrap' }}>
-                    codigo,descripcion,unidad,precio_unitario,medicion_contrato,rendimiento_objetivo
-                    04.02.01.05,&quot;Tendido en zanja&quot;,m,0.51,408928,100
-                  </div>
-                )}
-                
-                <div style={{ marginTop: '0.5rem' }}>
-                  <label htmlFor="csv-file" className="button" style={{ display: 'inline-block', cursor: 'pointer', textAlign: 'center' }}>
-                    Seleccionar Archivo CSV
-                  </label>
-                  <input
-                    type="file"
-                    id="csv-file"
-                    accept=".csv"
-                    onChange={handleCsvImport}
-                    style={{ display: 'none' }}
-                  />
-                </div>
-              </div>
-
-              <div style={{ marginTop: '1rem' }}>
-                {csvError && <p style={{ color: 'var(--status-red)', fontSize: '0.85rem', fontWeight: 500 }}>{csvError}</p>}
-                {csvSuccess && <p style={{ color: 'var(--status-green)', fontSize: '0.85rem', fontWeight: 500 }}>{csvSuccess}</p>}
-              </div>
-            </div>
-          </div>
-
-          {/* Tabla de partidas */}
+        <div>
+          <SectionToolbar title={currentObra?.tipo === 'tarea' ? `Listado de Tareas (${partidas.length})` : `Listado de Partidas (${partidas.length})`}>
+            <button type="button" onClick={handleOpenCsvImport}>
+              Importar CSV
+            </button>
+            <button type="button" className="primary" onClick={() => handleOpenNewForm('partida')}>
+              {currentObra?.tipo === 'tarea' ? '+ Nueva Tarea' : '+ Nueva Partida'}
+            </button>
+          </SectionToolbar>
           <div style={{ overflowX: 'auto' }}>
-            <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>
-              {currentObra?.tipo === 'tarea' ? `Listado de Tareas (${partidas.length})` : `Listado de Partidas (${partidas.length})`}
-            </h2>
             <table>
               <thead>
                 <tr>
@@ -1162,25 +969,312 @@ export default function ConfigView() {
                   <tr>
                     <td colSpan={7} style={{ textAlign: 'center', color: 'var(--text-tertiary)' }}>
                       {currentObra?.tipo === 'tarea' 
-                        ? 'No hay tareas registradas. Créalas arriba o importa un CSV.' 
-                        : 'No hay partidas registradas. Créalas arriba o importa un CSV.'}
+                        ? 'No hay tareas registradas. Crea una nueva o importa un CSV.' 
+                        : 'No hay partidas registradas. Crea una nueva o importa un CSV.'}
                     </td>
                   </tr>
                 )}
               </tbody>
             </table>
           </div>
+
+          <Modal
+            isOpen={openForm === 'partida'}
+            onClose={handleCloseForm}
+            size="md"
+            title={selectedPartida
+              ? (currentObra?.tipo === 'tarea' ? 'Editar Tarea' : 'Editar Partida')
+              : (currentObra?.tipo === 'tarea' ? 'Nueva Tarea y Puntos' : 'Nueva Partida de Presupuesto')}
+          >
+            <form onSubmit={handleSavePartida} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div>
+                <label htmlFor="part-codigo">{currentObra?.tipo === 'tarea' ? 'Código Tarea (Único):' : 'Código Partida (Único):'}</label>
+                <input
+                  type="text"
+                  id="part-codigo"
+                  value={partidaCodigo}
+                  onChange={e => setPartidaCodigo(e.target.value)}
+                  placeholder={currentObra?.tipo === 'tarea' ? "Tarea 1" : "04.02.01.05"}
+                  required
+                  disabled={!!selectedPartida}
+                />
+              </div>
+              <div>
+                <label htmlFor="part-desc">{currentObra?.tipo === 'tarea' ? 'Nombre de la Tarea:' : 'Descripción:'}</label>
+                <input
+                  type="text"
+                  id="part-desc"
+                  value={partidaDesc}
+                  onChange={e => setPartidaDesc(e.target.value)}
+                  placeholder={currentObra?.tipo === 'tarea' ? "Fusionado fibra" : "Tendido en zanja"}
+                  required
+                />
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                <div>
+                  <label htmlFor="part-unidad">Unidad (UD):</label>
+                  <input
+                    type="text"
+                    id="part-unidad"
+                    value={partidaUnidad}
+                    onChange={e => setPartidaUnidad(e.target.value)}
+                    placeholder="ud, m, etc."
+                    required
+                  />
+                </div>
+                <div>
+                  <label htmlFor="part-precio">{currentObra?.tipo === 'tarea' ? 'Puntos Otorgados:' : 'Precio Unitario (€):'}</label>
+                  <input
+                    type="number"
+                    id="part-precio"
+                    value={partidaPrecio}
+                    onChange={e => setPartidaPrecio(Number(e.target.value))}
+                    step="any"
+                    min="0"
+                    required
+                    aria-describedby={currentObra?.tipo === 'tarea' ? 'part-precio-help' : undefined}
+                  />
+                  {currentObra?.tipo === 'tarea' && (
+                    <span id="part-precio-help" style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                      Admite hasta {PUNTOS_DECIMALES} decimales (ej: 2,5625).
+                    </span>
+                  )}
+                </div>
+              </div>
+              {currentObra?.tipo === 'tarea' && (
+                <>
+                  <div>
+                    <label htmlFor="part-categoria">Clasificación de la tarea:</label>
+                    <select
+                      id="part-categoria"
+                      value={partidaCategoria}
+                      onChange={e => setPartidaCategoria(e.target.value as CategoriaTarea)}
+                      required
+                    >
+                      <option value="cable">Cable</option>
+                      <option value="obra_civil">Obra civil</option>
+                    </select>
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                      Determina el precio por punto aplicado (configurable en Semáforo y Umbrales).
+                    </span>
+                  </div>
+                  <div>
+                    <label htmlFor="part-coste">Gasto por tarea (€) — opcional:</label>
+                    <input
+                      type="number"
+                      id="part-coste"
+                      value={partidaCoste}
+                      onChange={e => setPartidaCoste(Number(e.target.value))}
+                      step="any"
+                      min="0"
+                      placeholder="0"
+                      aria-describedby="part-coste-help"
+                    />
+                    <span id="part-coste-help" style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                      Coste que asume la obra cada vez que se realiza la tarea. Se imputa como gasto por cada unidad ejecutada y se resta del margen. Déjalo a 0 si la tarea no tiene coste.
+                      {partidaPrecio > 0 && partidaCoste > 0 && config && (
+                        <>
+                          {' '}Ahora: <strong>{formatCurrency(Number(partidaPrecio) * precioPuntoCategoria(config, partidaCategoria))}</strong> de ingreso
+                          {' '}− <strong>{formatCurrency(Number(partidaCoste))}</strong> de gasto
+                          {' '}= <strong>{formatCurrency(Number(partidaPrecio) * precioPuntoCategoria(config, partidaCategoria) - Number(partidaCoste))}</strong> por unidad.
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </>
+              )}
+              {currentObra?.tipo !== 'tarea' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
+                  <div>
+                    <label htmlFor="part-medicion">Medición Contrato:</label>
+                    <input
+                      type="number"
+                      id="part-medicion"
+                      value={partidaMedicion}
+                      onChange={e => setPartidaMedicion(Number(e.target.value))}
+                      min="0"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="part-rend">Objetivo (unidad/persona/día):</label>
+                    <input
+                      type="number"
+                      id="part-rend"
+                      value={partidaRend}
+                      onChange={e => setPartidaRend(e.target.value === '' ? '' : Number(e.target.value))}
+                      min="0"
+                      step="any"
+                      placeholder="Usa rendimiento de semáforo"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* Historial de precios por fecha (solo obras por metro) */}
+              {currentObra?.tipo !== 'tarea' && !selectedPartida && (
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', margin: 0 }}>
+                  Podrás programar cambios de precio por fecha una vez creada la partida.
+                </p>
+              )}
+              {currentObra?.tipo !== 'tarea' && selectedPartida && (() => {
+                const historial = (partidas.find(p => p.id === selectedPartida.id)?.precios_historial ?? [])
+                  .slice()
+                  .sort((a, b) => a.fecha_desde.localeCompare(b.fecha_desde));
+                return (
+                  <fieldset style={{ border: '1px solid var(--border-color)', borderRadius: 'var(--border-radius)', padding: '1rem', margin: 0 }}>
+                    <legend style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.03em', padding: '0 0.4rem' }}>
+                      Cambios de precio por fecha
+                    </legend>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', margin: '0 0 0.75rem' }}>
+                      Precio base <strong>{formatCurrency(Number(partidaPrecio))}/{partidaUnidad}</strong> desde el inicio. Cada parte cobra el precio vigente en su fecha; los partes anteriores a un cambio no se modifican.
+                    </p>
+                    {historial.length > 0 && (
+                      <ul style={{ listStyle: 'none', padding: 0, margin: '0 0 0.75rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                        {historial.map(h => (
+                          <li key={h.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.85rem' }}>
+                            <span>Desde <strong>{h.fecha_desde}</strong>: <strong>{formatCurrency(h.precio_unitario)}</strong>/{partidaUnidad}</span>
+                            <button type="button" onClick={() => handleDeletePrecio(h.id)} className="danger" style={{ padding: '0.15rem 0.5rem', fontSize: '0.72rem' }}>
+                              Eliminar
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.5rem', alignItems: 'end' }}>
+                      <div>
+                        <label htmlFor="nuevo-precio-fecha" style={{ fontSize: '0.75rem' }}>A partir del:</label>
+                        <input
+                          type="date"
+                          id="nuevo-precio-fecha"
+                          value={nuevoPrecioFecha}
+                          onChange={e => setNuevoPrecioFecha(e.target.value)}
+                        />
+                      </div>
+                      <div>
+                        <label htmlFor="nuevo-precio-valor" style={{ fontSize: '0.75rem' }}>Nuevo precio (€):</label>
+                        <input
+                          type="number"
+                          id="nuevo-precio-valor"
+                          value={nuevoPrecioValor}
+                          onChange={e => setNuevoPrecioValor(e.target.value === '' ? '' : Number(e.target.value))}
+                          min="0"
+                          step="0.01"
+                          placeholder="2.50"
+                        />
+                      </div>
+                      <button type="button" onClick={handleAddPrecio} style={{ fontSize: '0.8rem' }}>
+                        Añadir
+                      </button>
+                    </div>
+                  </fieldset>
+                );
+              })()}
+
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button type="submit" className="primary">
+                  {selectedPartida ? 'Actualizar' : 'Crear'}
+                </button>
+                <button type="button" onClick={handleCloseForm}>
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </Modal>
+
+          <Modal isOpen={openForm === 'csv'} onClose={handleCloseForm} size="md" title="Importación Masiva (CSV)">
+            <p style={{ fontSize: '0.85rem' }}>
+              {currentObra?.tipo === 'tarea'
+                ? 'Sube un archivo CSV (.csv) con las tareas de obra y sus puntos. Las columnas categoria y coste son opcionales.'
+                : 'Sube un archivo de Excel exportado a CSV (.csv) con las partidas del presupuesto.'}
+            </p>
+            {currentObra?.tipo === 'tarea' ? (
+              <div style={{ fontSize: '0.75rem', backgroundColor: 'var(--bg-tertiary)', padding: '0.75rem', borderRadius: '4px', fontFamily: 'monospace', marginBottom: '1rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                codigo,descripcion,unidad,puntos,categoria,coste
+                T-01,&quot;Fusionado de fibra&quot;,ud,2.5,cable,12.50
+              </div>
+            ) : (
+              <div style={{ fontSize: '0.75rem', backgroundColor: 'var(--bg-tertiary)', padding: '0.75rem', borderRadius: '4px', fontFamily: 'monospace', marginBottom: '1rem', whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>
+                codigo,descripcion,unidad,precio_unitario,medicion_contrato,rendimiento_objetivo
+                04.02.01.05,&quot;Tendido en zanja&quot;,m,0.51,408928,100
+              </div>
+            )}
+                
+            <div style={{ marginTop: '0.5rem' }}>
+              <label htmlFor="csv-file" className="button" style={{ display: 'inline-block', cursor: 'pointer', textAlign: 'center' }}>
+                Seleccionar Archivo CSV
+              </label>
+              <input
+                type="file"
+                id="csv-file"
+                accept=".csv"
+                onChange={handleCsvImport}
+                style={{ display: 'none' }}
+              />
+            </div>
+            <div style={{ marginTop: '1rem' }}>
+              {csvError && <p style={{ color: 'var(--status-red)', fontSize: '0.85rem', fontWeight: 500 }}>{csvError}</p>}
+              {csvSuccess && <p style={{ color: 'var(--status-green)', fontSize: '0.85rem', fontWeight: 500 }}>{csvSuccess}</p>}
+            </div>
+          </Modal>
         </div>
       )}
 
       {/* 3. TAB BRIGADAS */}
       {activeTab === 'brigadas' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', alignItems: 'start' }}>
-          {/* Formulario */}
-          <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
-            <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>
-              {selectedBrigada ? 'Editar Brigada' : 'Nueva Brigada'}
-            </h2>
+        <div>
+          <SectionToolbar title={`Brigadas (${brigadas.length})`}>
+            <button type="button" className="primary" onClick={() => handleOpenNewForm('brigada')}>
+              + Nueva Brigada
+            </button>
+          </SectionToolbar>
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Jefe de Equipo</th>
+                  <th>Operarios Habituales</th>
+                  <th style={{ textAlign: 'right' }}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {brigadas.map(b => (
+                  <tr key={b.id}>
+                    <td style={{ fontWeight: 600 }}>{b.nombre}</td>
+                    <td>{b.jefe_nombre || 'Sin asignar'}</td>
+                    <td>{b.num_personas_habitual} personas</td>
+                    <td style={{ textAlign: 'right' }}>
+                      <div style={{ display: 'inline-flex', gap: '0.25rem' }}>
+                        <button
+                          onClick={() => handleEditBrigada(b)}
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => handleDeleteBrigada(b.id)}
+                          className="danger"
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                        >
+                          Borrar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+                {brigadas.length === 0 && (
+                  <tr>
+                    <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-tertiary)' }}>
+                      No hay brigadas registradas.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <Modal isOpen={openForm === 'brigada'} onClose={handleCloseForm} size="md" title={selectedBrigada ? 'Editar Brigada' : 'Nueva Brigada'}>
             <form onSubmit={handleSaveBrigada} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <div>
                 <label htmlFor="brig-nombre">Nombre de la Brigada:</label>
@@ -1226,43 +1320,59 @@ export default function ConfigView() {
                 <button type="submit" className="primary">
                   {selectedBrigada ? 'Actualizar' : 'Crear'}
                 </button>
-                {selectedBrigada && (
-                  <button type="button" onClick={resetBrigadaForm}>
-                    Cancelar
-                  </button>
-                )}
+                <button type="button" onClick={handleCloseForm}>
+                  Cancelar
+                </button>
               </div>
             </form>
-          </div>
+          </Modal>
+        </div>
+      )}
 
-          {/* Listado */}
+      {/* 4. TAB USUARIOS */}
+      {activeTab === 'usuarios' && (
+        <div>
+          <SectionToolbar title={`Usuarios y Roles (${usuarios.length})`}>
+            <button type="button" className="primary" onClick={() => handleOpenNewForm('usuario')}>
+              + Nuevo Usuario
+            </button>
+          </SectionToolbar>
           <div style={{ overflowX: 'auto' }}>
-            <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Brigadas ({brigadas.length})</h2>
             <table>
               <thead>
                 <tr>
                   <th>Nombre</th>
-                  <th>Jefe de Equipo</th>
-                  <th>Operarios Habituales</th>
+                  <th>Usuario</th>
+                  <th>Rol</th>
                   <th style={{ textAlign: 'right' }}>Acciones</th>
                 </tr>
               </thead>
               <tbody>
-                {brigadas.map(b => (
-                  <tr key={b.id}>
-                    <td style={{ fontWeight: 600 }}>{b.nombre}</td>
-                    <td>{b.jefe_nombre || 'Sin asignar'}</td>
-                    <td>{b.num_personas_habitual} personas</td>
+                {usuarios.map(u => (
+                  <tr key={u.id}>
+                    <td style={{ fontWeight: 600 }}>{u.nombre}</td>
+                    <td>{u.username}</td>
+                    <td>
+                      <span style={{
+                        fontSize: '0.75rem',
+                        padding: '0.2rem 0.4rem',
+                        borderRadius: '4px',
+                        backgroundColor: 'var(--bg-tertiary)',
+                        fontWeight: 500
+                      }}>
+                        {u.rol === 'admin' ? 'Administrador' : u.rol === 'jefe_equipo' ? 'Jefe de Equipo' : 'Solo lectura'}
+                      </span>
+                    </td>
                     <td style={{ textAlign: 'right' }}>
                       <div style={{ display: 'inline-flex', gap: '0.25rem' }}>
                         <button
-                          onClick={() => handleEditBrigada(b)}
+                          onClick={() => handleEditUsuario(u)}
                           style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
                         >
                           Editar
                         </button>
                         <button
-                          onClick={() => handleDeleteBrigada(b.id)}
+                          onClick={() => handleDeleteUsuario(u.id)}
                           className="danger"
                           style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
                         >
@@ -1272,27 +1382,11 @@ export default function ConfigView() {
                     </td>
                   </tr>
                 ))}
-                {brigadas.length === 0 && (
-                  <tr>
-                    <td colSpan={4} style={{ textAlign: 'center', color: 'var(--text-tertiary)' }}>
-                      No hay brigadas registradas.
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </div>
-        </div>
-      )}
 
-      {/* 4. TAB USUARIOS */}
-      {activeTab === 'usuarios' && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', alignItems: 'start' }}>
-          {/* Formulario */}
-          <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
-            <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>
-              {selectedUsuario ? 'Editar Usuario' : 'Nuevo Usuario'}
-            </h2>
+          <Modal isOpen={openForm === 'usuario'} onClose={handleCloseForm} size="md" title={selectedUsuario ? 'Editar Usuario' : 'Nuevo Usuario'}>
             <form onSubmit={handleSaveUsuario} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <div>
                 <label htmlFor="usr-nombre">Nombre Completo:</label>
@@ -1345,76 +1439,103 @@ export default function ConfigView() {
                 <button type="submit" className="primary">
                   {selectedUsuario ? 'Actualizar' : 'Crear'}
                 </button>
-                {selectedUsuario && (
-                  <button type="button" onClick={resetUsuarioForm}>
-                    Cancelar
-                  </button>
-                )}
+                <button type="button" onClick={handleCloseForm}>
+                  Cancelar
+                </button>
               </div>
             </form>
-          </div>
-
-          {/* Listado */}
-          <div style={{ overflowX: 'auto' }}>
-            <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Usuarios y Roles ({usuarios.length})</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>Nombre</th>
-                  <th>Usuario</th>
-                  <th>Rol</th>
-                  <th style={{ textAlign: 'right' }}>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {usuarios.map(u => (
-                  <tr key={u.id}>
-                    <td style={{ fontWeight: 600 }}>{u.nombre}</td>
-                    <td>{u.username}</td>
-                    <td>
-                      <span style={{
-                        fontSize: '0.75rem',
-                        padding: '0.2rem 0.4rem',
-                        borderRadius: '4px',
-                        backgroundColor: 'var(--bg-tertiary)',
-                        fontWeight: 500
-                      }}>
-                        {u.rol === 'admin' ? 'Administrador' : u.rol === 'jefe_equipo' ? 'Jefe de Equipo' : 'Solo lectura'}
-                      </span>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>
-                      <div style={{ display: 'inline-flex', gap: '0.25rem' }}>
-                        <button
-                          onClick={() => handleEditUsuario(u)}
-                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                        >
-                          Editar
-                        </button>
-                        <button
-                          onClick={() => handleDeleteUsuario(u.id)}
-                          className="danger"
-                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                        >
-                          Borrar
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          </Modal>
         </div>
       )}
 
       {/* 5. TAB RECURSOS */}
       {activeTab === 'recursos' && (
-        <div className="config-grid-recursos">
-          {/* Formulario */}
-          <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
-            <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>
-              {selectedRecurso ? 'Editar Recurso' : 'Nuevo Recurso (Trabajador / Maquinaria)'}
-            </h2>
+        <div>
+          <SectionToolbar title={`Recursos Activos (${recursos.length})`}>
+            <button type="button" className="primary" onClick={() => handleOpenNewForm('recurso')}>
+              + Nuevo Recurso
+            </button>
+          </SectionToolbar>
+          <div style={{ overflowX: 'auto' }}>
+            <table>
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Tipo</th>
+                  <th>Coste</th>
+                  <th>Diario</th>
+                  <th>Brigada</th>
+                  <th style={{ textAlign: 'right' }}>Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {recursos.map(r => {
+                  const totalMensual = Number(r.sueldo || 0) + Number(r.seguridad_social || 0) + Number(r.alojamiento || 0) + Number(r.otros_costes || 0);
+                  const totalDiario = totalMensual / 20;
+                  return (
+                    <tr key={r.id}>
+                      <td>
+                        <span style={{ fontWeight: 600, display: 'block' }}>{r.nombre}</span>
+                        {r.tipo === 'trabajador' && (
+                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            S: {r.sueldo}€ | SS: {r.seguridad_social}€ | Al: {r.alojamiento}€
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <span style={{
+                          fontSize: '0.7rem',
+                          textTransform: 'uppercase',
+                          padding: '0.15rem 0.35rem',
+                          borderRadius: '4px',
+                          backgroundColor: 'var(--bg-tertiary)',
+                          fontWeight: 600,
+                          color: 'var(--text-secondary)'
+                        }}>
+                          {r.tipo}
+                        </span>
+                      </td>
+                      <td style={{ fontWeight: 500 }}>
+                        {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(totalMensual)}
+                      </td>
+                      <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                        {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(totalDiario)}
+                      </td>
+                      <td>
+                        <span style={{ fontSize: '0.85rem' }}>{r.brigada_nombre || 'Sin asignar'}</span>
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <div style={{ display: 'inline-flex', gap: '0.25rem' }}>
+                          <button
+                            onClick={() => handleEditRecurso(r)}
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                          >
+                            Editar
+                          </button>
+                          <button
+                            onClick={() => handleDeleteRecurso(r.id)}
+                            className="danger"
+                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                          >
+                            Borrar
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+                {recursos.length === 0 && (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: '2rem' }}>
+                      No hay recursos de personal o maquinaria registrados.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+
+          <Modal isOpen={openForm === 'recurso'} onClose={handleCloseForm} size="md" title={selectedRecurso ? 'Editar Recurso' : 'Nuevo Recurso (Trabajador / Maquinaria)'}>
             <form onSubmit={handleSaveRecurso} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
               <div>
                 <label htmlFor="rec-nombre">Nombre del Recurso:</label>
@@ -1516,159 +1637,25 @@ export default function ConfigView() {
                 <button type="submit" className="primary">
                   {selectedRecurso ? 'Actualizar' : 'Crear'}
                 </button>
-                {selectedRecurso && (
-                  <button type="button" onClick={resetRecursoForm}>
-                    Cancelar
-                  </button>
-                )}
+                <button type="button" onClick={handleCloseForm}>
+                  Cancelar
+                </button>
               </div>
             </form>
-          </div>
-
-          {/* Listado */}
-          <div style={{ overflowX: 'auto' }}>
-            <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Recursos Activos ({recursos.length})</h2>
-            <table>
-              <thead>
-                <tr>
-                  <th>Nombre</th>
-                  <th>Tipo</th>
-                  <th>Coste</th>
-                  <th>Diario</th>
-                  <th>Brigada</th>
-                  <th style={{ textAlign: 'right' }}>Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {recursos.map(r => {
-                  const totalMensual = Number(r.sueldo || 0) + Number(r.seguridad_social || 0) + Number(r.alojamiento || 0) + Number(r.otros_costes || 0);
-                  const totalDiario = totalMensual / 20;
-                  return (
-                    <tr key={r.id}>
-                      <td>
-                        <span style={{ fontWeight: 600, display: 'block' }}>{r.nombre}</span>
-                        {r.tipo === 'trabajador' && (
-                          <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            S: {r.sueldo}€ | SS: {r.seguridad_social}€ | Al: {r.alojamiento}€
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        <span style={{
-                          fontSize: '0.7rem',
-                          textTransform: 'uppercase',
-                          padding: '0.15rem 0.35rem',
-                          borderRadius: '4px',
-                          backgroundColor: 'var(--bg-tertiary)',
-                          fontWeight: 600,
-                          color: 'var(--text-secondary)'
-                        }}>
-                          {r.tipo}
-                        </span>
-                      </td>
-                      <td style={{ fontWeight: 500 }}>
-                        {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(totalMensual)}
-                      </td>
-                      <td style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
-                        {new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(totalDiario)}
-                      </td>
-                      <td>
-                        <span style={{ fontSize: '0.85rem' }}>{r.brigada_nombre || 'Sin asignar'}</span>
-                      </td>
-                      <td style={{ textAlign: 'right' }}>
-                        <div style={{ display: 'inline-flex', gap: '0.25rem' }}>
-                          <button
-                            onClick={() => handleEditRecurso(r)}
-                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                          >
-                            Editar
-                          </button>
-                          <button
-                            onClick={() => handleDeleteRecurso(r.id)}
-                            className="danger"
-                            style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                          >
-                            Borrar
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {recursos.length === 0 && (
-                  <tr>
-                    <td colSpan={6} style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: '2rem' }}>
-                      No hay recursos de personal o maquinaria registrados.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          </Modal>
         </div>
       )}
 
       {/* 6. TAB OBRAS */}
       {activeTab === 'obras' && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '2rem', alignItems: 'start' }}>
-            {/* Formulario */}
-            <div style={{ backgroundColor: 'var(--bg-secondary)', padding: '1.5rem', borderRadius: 'var(--border-radius)', border: '1px solid var(--border-color)' }}>
-              <h2 style={{ fontSize: '1.1rem', marginBottom: '1rem' }}>
-                {selectedObra ? 'Editar Obra' : 'Nueva Obra'}
-              </h2>
-              <form onSubmit={handleSaveObra} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <div>
-                  <label htmlFor="obra-nombre">Nombre de la Obra:</label>
-                  <input
-                    type="text"
-                    id="obra-nombre"
-                    value={obraNombre}
-                    onChange={e => setObraNombre(e.target.value)}
-                    placeholder="Obra CAF"
-                    required
-                  />
-                </div>
-                <div>
-                  <label htmlFor="obra-tipo">Tipo de Obra:</label>
-                  <select
-                    id="obra-tipo"
-                    value={obraTipo}
-                    onChange={e => setObraTipo(e.target.value as 'metro' | 'tarea')}
-                    style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}
-                  >
-                    <option value="metro">Metro (Rendimiento por metros/persona/día)</option>
-                    <option value="tarea">Tareas (Basado en tareas y unidades)</option>
-                  </select>
-                </div>
-                <div>
-                  <label htmlFor="obra-desc">Descripción / Detalles:</label>
-                  <textarea
-                    id="obra-desc"
-                    value={obraDesc}
-                    onChange={e => setObraDesc(e.target.value)}
-                    placeholder="Canalización zona centro"
-                    style={{ width: '100%', minHeight: '60px', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
-                  />
-                </div>
-
-                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                  <button type="submit" className="primary">
-                    {selectedObra ? 'Actualizar' : 'Crear'}
-                  </button>
-                  {selectedObra && (
-                    <button type="button" onClick={() => { setSelectedObra(null); setObraNombre(''); setObraDesc(''); setObraTipo('metro'); }}>
-                      Cancelar
-                    </button>
-                  )}
-                </div>
-              </form>
-            </div>
-
-            {/* Listado de Obras registradas */}
+          <div>
+            <SectionToolbar title={`Obras en el Sistema (${obras.length})`}>
+              <button type="button" className="primary" onClick={() => handleOpenNewForm('obra')}>
+                + Nueva Obra
+              </button>
+            </SectionToolbar>
             <div style={{ overflowX: 'auto' }}>
-              <h2 style={{ fontSize: '1.1rem', marginBottom: '0.5rem' }}>Obras en el Sistema ({obras.length})</h2>
               <table>
                 <thead>
                   <tr>
@@ -1728,6 +1715,53 @@ export default function ConfigView() {
             </div>
           </div>
 
+          <Modal isOpen={openForm === 'obra'} onClose={handleCloseForm} size="md" title={selectedObra ? 'Editar Obra' : 'Nueva Obra'}>
+            <form onSubmit={handleSaveObra} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div>
+                <label htmlFor="obra-nombre">Nombre de la Obra:</label>
+                <input
+                  type="text"
+                  id="obra-nombre"
+                  value={obraNombre}
+                  onChange={e => setObraNombre(e.target.value)}
+                  placeholder="Obra CAF"
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="obra-tipo">Tipo de Obra:</label>
+                <select
+                  id="obra-tipo"
+                  value={obraTipo}
+                  onChange={e => setObraTipo(e.target.value as 'metro' | 'tarea')}
+                  style={{ width: '100%', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)', cursor: 'pointer' }}
+                >
+                  <option value="metro">Metro (Rendimiento por metros/persona/día)</option>
+                  <option value="tarea">Tareas (Basado en tareas y unidades)</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="obra-desc">Descripción / Detalles:</label>
+                <textarea
+                  id="obra-desc"
+                  value={obraDesc}
+                  onChange={e => setObraDesc(e.target.value)}
+                  placeholder="Canalización zona centro"
+                  style={{ width: '100%', minHeight: '60px', padding: '0.5rem', borderRadius: '4px', border: '1px solid var(--border-color)', backgroundColor: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <button type="submit" className="primary">
+                  {selectedObra ? 'Actualizar' : 'Crear'}
+                </button>
+                <button type="button" onClick={handleCloseForm}>
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </Modal>
+
           <hr style={{ border: '0', borderTop: '1px solid var(--border-color)', margin: '1rem 0' }} />
 
           {/* Asignación de accesos para lectores */}
@@ -1776,7 +1810,6 @@ export default function ConfigView() {
               )}
             </div>
           </div>
-
         </div>
       )}
     </div>
