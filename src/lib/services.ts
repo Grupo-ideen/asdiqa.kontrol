@@ -942,6 +942,7 @@ export const Services = {
             obra_id: pt.obra_id,
             creado_en: pt.creado_en,
             actualizado_en: pt.actualizado_en,
+            origen: pt.origen === 'mats' ? 'mats' : 'kontrol',
             brigada_nombre: pt.brigada?.nombre || 'Desconocida',
             creado_por_nombre: pt.creado_por_user?.nombre || 'Desconocido',
             lineas: pt.partes_lineas?.map((pl: any) => {

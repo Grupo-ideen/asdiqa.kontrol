@@ -77,6 +77,8 @@ export interface ParteTrabajo {
   obra_id: string;
   creado_en?: string;
   actualizado_en?: string;
+  /** 'mats': creado por Asdiqa Mats al validar sus partes; de solo lectura aquí. */
+  origen?: 'kontrol' | 'mats';
   // Relaciones
   brigada_nombre?: string;
   creado_por_nombre?: string;

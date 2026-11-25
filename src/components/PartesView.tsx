@@ -49,6 +49,10 @@ export default function PartesView() {
 
   // Abrir formulario para editar
   const handleEditParte = (parte: ParteTrabajo) => {
+    if (parte.origen === 'mats') {
+      showToast('Este parte viene de Asdiqa Mats: corrígelo allí y se actualizará solo.', 'error');
+      return;
+    }
     const creatorUser = usuarios.find(u => u.id === parte.creado_por);
     if (isJefeEquipo && creatorUser?.rol === 'admin') {
       showToast('No puedes corregir partes creados por un administrador.', 'error');
@@ -62,6 +66,10 @@ export default function PartesView() {
   const handleDeleteParte = (id: string) => {
     if (isReadOnly) return;
     const parte = partes.find(p => p.id === id);
+    if (parte?.origen === 'mats') {
+      showToast('Este parte viene de Asdiqa Mats: corrígelo allí y se actualizará solo.', 'error');
+      return;
+    }
     const creatorUser = usuarios.find(u => u.id === parte?.creado_por);
     if (isJefeEquipo && creatorUser?.rol === 'admin') {
       showToast('No puedes eliminar partes creados por un administrador.', 'error');
@@ -455,14 +463,17 @@ export default function PartesView() {
                     </p>
                   )}
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-                    Registrado por: {parte.creado_por_nombre || 'Sistema'}
+                    {parte.origen === 'mats'
+                      ? 'Viene de Asdiqa Mats · se corrige allí'
+                      : `Registrado por: ${parte.creado_por_nombre || 'Sistema'}`}
                   </span>
                 </div>
 
                 {(() => {
                   const creatorUser = usuarios.find(u => u.id === parte.creado_por);
                   const isCreatedByAdmin = creatorUser?.rol === 'admin';
-                  const canModify = !isReadOnly && (!isJefeEquipo || !isCreatedByAdmin);
+                  const canModify =
+                    parte.origen !== 'mats' && !isReadOnly && (!isJefeEquipo || !isCreatedByAdmin);
                   return canModify && (
                     <div style={{ display: 'inline-flex', gap: '0.5rem' }}>
                       <button
