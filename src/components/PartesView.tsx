@@ -6,6 +6,7 @@ import { Services } from '@/lib/services';
 import { ParteTrabajo } from '@/lib/types';
 import { calculateParteMetrics } from '@/lib/calculations';
 import { formatPuntos } from '@/lib/format';
+import { formatEuros, materialDelParte } from '@/lib/materialMats';
 import PerformanceTrafficLight from './PerformanceTrafficLight';
 import Modal from './Modal';
 import ParteForm from './ParteForm';
@@ -204,7 +205,9 @@ export default function PartesView() {
         {filteredPartes.map(parte => {
           // Calcular rendimiento y semáforo en tiempo real para este parte diario
           const metrics = config ? calculateParteMetrics(parte, gastos, config, recursos, currentObra?.tipo) : null;
-          
+          const material = materialDelParte(parte, gastos);
+          const totalMaterial = material.reduce((sum, m) => sum + m.gasto.importe, 0);
+
           return (
             <div
               key={parte.id}
@@ -316,6 +319,30 @@ export default function PartesView() {
                   })}
                 </ul>
               </div>
+
+              {/* Material gastado ese día por la brigada, que llega de Asdiqa Mats */}
+              {material.length > 0 && (
+                <div style={{ fontSize: '0.85rem', borderLeft: '2px solid var(--border-color)', paddingLeft: '0.75rem' }}>
+                  <span style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', fontWeight: 600, marginBottom: '0.25rem', color: 'var(--text-secondary)' }}>
+                    <span>Material Gastado:</span>
+                    {!isJefeEquipo && <span>{formatEuros(totalMaterial)}</span>}
+                  </span>
+                  <ul style={{ listStyle: 'none', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                    {material.map(({ gasto, codigo, descripcion, cantidad }) => (
+                      <li key={gasto.id} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem' }}>
+                        <span>
+                          {codigo && <><code>{codigo}</code> — </>}
+                          {descripcion}
+                          {cantidad && <>: <strong>{cantidad}</strong></>}
+                        </span>
+                        {!isJefeEquipo && (
+                          <span style={{ color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{formatEuros(gasto.importe)}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
               {/* Resumen económico diario del Parte */}
                {metrics && !isJefeEquipo && (

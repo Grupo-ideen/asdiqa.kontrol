@@ -6,11 +6,18 @@ import { Services } from '@/lib/services';
 import { Gasto } from '@/lib/types';
 import Modal from './Modal';
 import GastoForm from './GastoForm';
+import MaterialPartesSection from './MaterialPartesSection';
+import { esMaterialDeMats } from '@/lib/materialMats';
 
-const AVISO_MATS = 'Este gasto viene de Asdiqa Mats: corrige el parte allí y se actualizará solo.';
+type SeccionGastos = 'obra' | 'material';
 
 export default function GastosView() {
-  const { gastos, brigadas, partidas, currentUser, refreshAll, showConfirm, showToast } = useApp();
+  const { gastos, brigadas, partidas, currentUser, refreshAll, showConfirm } = useApp();
+
+  // El material de los partes de Mats va en su propia sección para no inundar los gastos de obra.
+  const [seccion, setSeccion] = useState<SeccionGastos>('obra');
+  const gastosDeObra = gastos.filter(g => !esMaterialDeMats(g));
+  const numMaterialMats = gastos.length - gastosDeObra.length;
 
   // Filtros de listado
   const [filterBrigada, setFilterBrigada] = useState('');
@@ -29,10 +36,6 @@ export default function GastosView() {
   // Abrir un gasto existente en el formulario para editarlo
   const handleEditGasto = (g: Gasto) => {
     if (isReadOnly) return;
-    if (g.origen === 'mats') {
-      showToast(AVISO_MATS, 'error');
-      return;
-    }
     setEditingGasto(g);
     setIsFormOpen(true);
   };
@@ -40,10 +43,6 @@ export default function GastosView() {
   // Borrar Gasto
   const handleDeleteGasto = (id: string) => {
     if (isReadOnly) return;
-    if (gastos.find(g => g.id === id)?.origen === 'mats') {
-      showToast(AVISO_MATS, 'error');
-      return;
-    }
     showConfirm(
       '¿Borrar gasto?',
       '¿Estás seguro de borrar este gasto? Se recalculará el rendimiento de la brigada para este periodo.',
@@ -65,7 +64,7 @@ export default function GastosView() {
   };
 
   // Filtrado de la lista de gastos
-  const filteredGastos = gastos.filter(g => {
+  const filteredGastos = gastosDeObra.filter(g => {
     if (filterBrigada && g.brigada_id !== filterBrigada) return false;
     if (filterCategoria && g.categoria !== filterCategoria) return false;
     if (filterPartida && g.partida_id !== filterPartida) return false;
@@ -136,6 +135,35 @@ export default function GastosView() {
         </Modal>
       )}
 
+      {/* Tabs minimalistas, como en Configuración */}
+      <div role="tablist" style={{ display: 'flex', borderBottom: '1px solid var(--border-color)', marginBottom: '1.5rem', gap: '0.5rem' }}>
+        {([
+          { id: 'obra', label: 'Gastos de Obra' },
+          { id: 'material', label: `Material de Partes (${numMaterialMats})` }
+        ] as const).map(tab => (
+          <button
+            key={tab.id}
+            role="tab"
+            aria-selected={seccion === tab.id}
+            onClick={() => setSeccion(tab.id)}
+            style={{
+              border: 'none',
+              borderBottom: seccion === tab.id ? '2px solid var(--text-primary)' : 'none',
+              borderRadius: 0,
+              padding: '0.5rem 1rem',
+              background: 'none',
+              fontWeight: seccion === tab.id ? 600 : 400
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {seccion === 'material' ? (
+        <MaterialPartesSection />
+      ) : (
+      <>
       {/* DASHBOARD RÁPIDO DE DESGLOSE */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.25rem', marginBottom: '2rem' }}>
         
@@ -328,15 +356,10 @@ export default function GastosView() {
                 <td>
                   {g.partida_codigo ? <code>{g.partida_codigo}</code> : <span style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem' }}>General</span>}
                 </td>
-                <td>{g.proveedor || (g.origen === 'mats' ? 'Asdiqa Mats' : '-')}</td>
+                <td>{g.proveedor || '-'}</td>
                 <td style={{ textAlign: 'right', fontWeight: 600 }}>{g.importe.toFixed(2)} €</td>
                 {!isReadOnly && (
                   <td style={{ textAlign: 'right' }}>
-                    {g.origen === 'mats' ? (
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
-                        Se corrige en Mats
-                      </span>
-                    ) : (
                       <div style={{ display: 'inline-flex', gap: '0.25rem' }}>
                         <button
                           onClick={() => handleEditGasto(g)}
@@ -352,7 +375,6 @@ export default function GastosView() {
                           Eliminar
                         </button>
                       </div>
-                    )}
                   </td>
                 )}
               </tr>
@@ -368,6 +390,8 @@ export default function GastosView() {
           </tbody>
         </table>
       </div>
+      </>
+      )}
     </div>
   );
 }
