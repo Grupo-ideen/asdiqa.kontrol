@@ -7,8 +7,10 @@ import { Gasto } from '@/lib/types';
 import Modal from './Modal';
 import GastoForm from './GastoForm';
 
+const AVISO_MATS = 'Este gasto viene de Asdiqa Mats: corrige el parte allí y se actualizará solo.';
+
 export default function GastosView() {
-  const { gastos, brigadas, partidas, currentUser, refreshAll, showConfirm } = useApp();
+  const { gastos, brigadas, partidas, currentUser, refreshAll, showConfirm, showToast } = useApp();
 
   // Filtros de listado
   const [filterBrigada, setFilterBrigada] = useState('');
@@ -27,6 +29,10 @@ export default function GastosView() {
   // Abrir un gasto existente en el formulario para editarlo
   const handleEditGasto = (g: Gasto) => {
     if (isReadOnly) return;
+    if (g.origen === 'mats') {
+      showToast(AVISO_MATS, 'error');
+      return;
+    }
     setEditingGasto(g);
     setIsFormOpen(true);
   };
@@ -34,6 +40,10 @@ export default function GastosView() {
   // Borrar Gasto
   const handleDeleteGasto = (id: string) => {
     if (isReadOnly) return;
+    if (gastos.find(g => g.id === id)?.origen === 'mats') {
+      showToast(AVISO_MATS, 'error');
+      return;
+    }
     showConfirm(
       '¿Borrar gasto?',
       '¿Estás seguro de borrar este gasto? Se recalculará el rendimiento de la brigada para este periodo.',
@@ -318,25 +328,31 @@ export default function GastosView() {
                 <td>
                   {g.partida_codigo ? <code>{g.partida_codigo}</code> : <span style={{ color: 'var(--text-tertiary)', fontSize: '0.8rem' }}>General</span>}
                 </td>
-                <td>{g.proveedor || '-'}</td>
+                <td>{g.proveedor || (g.origen === 'mats' ? 'Asdiqa Mats' : '-')}</td>
                 <td style={{ textAlign: 'right', fontWeight: 600 }}>{g.importe.toFixed(2)} €</td>
                 {!isReadOnly && (
                   <td style={{ textAlign: 'right' }}>
-                    <div style={{ display: 'inline-flex', gap: '0.25rem' }}>
-                      <button
-                        onClick={() => handleEditGasto(g)}
-                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                      >
-                        Editar
-                      </button>
-                      <button
-                        onClick={() => handleDeleteGasto(g.id)}
-                        className="danger"
-                        style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                      >
-                        Eliminar
-                      </button>
-                    </div>
+                    {g.origen === 'mats' ? (
+                      <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                        Se corrige en Mats
+                      </span>
+                    ) : (
+                      <div style={{ display: 'inline-flex', gap: '0.25rem' }}>
+                        <button
+                          onClick={() => handleEditGasto(g)}
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                        >
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => handleDeleteGasto(g.id)}
+                          className="danger"
+                          style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                        >
+                          Eliminar
+                        </button>
+                      </div>
+                    )}
                   </td>
                 )}
               </tr>

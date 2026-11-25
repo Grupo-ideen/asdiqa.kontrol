@@ -116,6 +116,8 @@ export interface Gasto {
   obra_id: string;
   creado_por: string | null;
   creado_en?: string;
+  /** 'mats': material gastado en los partes validados en Asdiqa Mats; de solo lectura aquí. */
+  origen?: 'kontrol' | 'mats';
   // Relaciones
   brigada_nombre?: string;
   partida_codigo?: string | null;
